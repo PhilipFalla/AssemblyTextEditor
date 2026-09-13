@@ -97,6 +97,22 @@ AYUDA11 DB 'ALT+S  - Guardar y salir$'
 
 VOLVERAYUDA DB 'Presiona cualquier tecla para regresar$'
 
+; -------------------------------------------------
+; BUSCAR Y REEMPLAZAR
+; -------------------------------------------------
+
+TITULOBUSCAR DB 'BUSCAR Y REEMPLAZAR$'
+TXT_BUSCAR   DB 'Texto a buscar: $'
+TXT_REEMPLAZAR DB 'Reemplazar por: $'
+TXT_ENTER    DB 'Presiona ENTER para continuar$'
+
+; Maximo 20 caracteres para cada entrada
+BUSCAR_TEXTO     DB 21 DUP(0)
+REEMPLAZAR_TEXTO DB 21 DUP(0)
+
+LARGO_BUSCAR     DB 0
+LARGO_REEMPLAZAR DB 0
+
 ; Mensaje temporal para identificar la pantalla
 TITULOEDIT  DB 'EDITOR DE TEXTO$'
 
@@ -255,14 +271,26 @@ REVISAR_ALT_I:
 REVISAR_ALT_J:
 
     ; Alt + J
-    ; Scan code de J = 24H
     CMP AH, 24H
+    JNE REVISAR_ALT_B
+
+    CMP AL, 00H
+    JNE REVISAR_ALT_B
+
+    JMP INSERTAR_FLOR
+
+
+REVISAR_ALT_B:
+
+    ; Alt + B
+    ; Scan code de B = 30H
+    CMP AH, 30H
     JNE REVISAR_ALT_H
 
     CMP AL, 00H
     JNE REVISAR_ALT_H
 
-    JMP INSERTAR_FLOR
+    JMP PANTALLA_BUSCAR
 
 
 REVISAR_ALT_H:
@@ -1390,6 +1418,361 @@ REDIBUJAR_IMAGENES_FIN:
     RET
 
 REDIBUJAR_IMAGENES ENDP
+
+; =================================================
+; ALT + B - PANTALLA BUSCAR Y REEMPLAZAR
+; =================================================
+
+PANTALLA_BUSCAR:
+
+    ; Limpiar pantalla
+    MOV AX, 0003H
+    INT 10H
+
+    ; Titulo
+    MOV BH, 2
+    MOV BL, 29
+    LEA DX, TITULOBUSCAR
+    CALL MOSTRAR_TEXTO
+
+    ; Texto a buscar
+    MOV BH, 6
+    MOV BL, 15
+    LEA DX, TXT_BUSCAR
+    CALL MOSTRAR_TEXTO
+
+    ; Colocar cursor despues del mensaje
+    MOV AH, 02H
+    MOV BH, 00H
+    MOV DH, 6
+    MOV DL, 31
+    INT 10H
+
+    ; Limpiar longitud anterior
+    MOV LARGO_BUSCAR, 0
+
+    ; Leer texto a buscar
+    LEA DI, BUSCAR_TEXTO
+    CALL LEER_CADENA
+
+    MOV AX, CX
+    MOV LARGO_BUSCAR, AL
+
+    ; Texto de reemplazo
+    MOV BH, 9
+    MOV BL, 15
+    LEA DX, TXT_REEMPLAZAR
+    CALL MOSTRAR_TEXTO
+
+    ; Colocar cursor despues del mensaje
+    MOV AH, 02H
+    MOV BH, 00H
+    MOV DH, 9
+    MOV DL, 32
+    INT 10H
+
+    ; Limpiar longitud anterior
+    MOV LARGO_REEMPLAZAR, 0
+
+    ; Leer reemplazo
+    LEA DI, REEMPLAZAR_TEXTO
+    CALL LEER_CADENA
+
+    MOV AX, CX
+    MOV LARGO_REEMPLAZAR, AL
+
+    ; Realizar busqueda y reemplazo
+    CALL BUSCAR_REEMPLAZAR
+
+    ; Redibujar documento con los cambios
+    JMP REDIBUJAR_EDITOR
+
+    ; =================================================
+; LEER CADENA
+;
+; Entrada:
+;   DI = direccion del buffer
+;
+; Salida:
+;   CX = cantidad de caracteres ingresados
+;
+; ENTER termina la entrada
+; Maximo 20 caracteres
+; =================================================
+
+LEER_CADENA PROC NEAR
+
+    PUSH AX
+    PUSH BX
+    PUSH DX
+    PUSH SI
+
+    XOR CX, CX
+
+
+LEER_CADENA_TECLA:
+
+    MOV AH, 00H
+    INT 16H
+
+    ; ENTER
+    CMP AL, 0DH
+    JE LEER_CADENA_FIN
+
+    ; BACKSPACE
+    CMP AL, 08H
+    JE LEER_CADENA_BACKSPACE
+
+    ; Maximo 20 caracteres
+    CMP CX, 20
+    JAE LEER_CADENA_TECLA
+
+    ; Solo aceptar los caracteres permitidos
+    ; Letras, numeros, coma, punto y dos puntos
+
+    CMP AL, '0'
+    JB LEER_REVISAR_MAYUS
+
+    CMP AL, '9'
+    JBE LEER_GUARDAR
+
+
+LEER_REVISAR_MAYUS:
+
+    CMP AL, 'A'
+    JB LEER_REVISAR_MINUS
+
+    CMP AL, 'Z'
+    JBE LEER_GUARDAR
+
+
+LEER_REVISAR_MINUS:
+
+    CMP AL, 'a'
+    JB LEER_REVISAR_SIGNOS
+
+    CMP AL, 'z'
+    JBE LEER_GUARDAR
+
+
+LEER_REVISAR_SIGNOS:
+
+    CMP AL, ','
+    JE LEER_GUARDAR
+
+    CMP AL, '.'
+    JE LEER_GUARDAR
+
+    CMP AL, ':'
+    JE LEER_GUARDAR
+
+    ; En tu DOSBox : tambien puede llegar como >
+    CMP AL, '>'
+    JNE LEER_CADENA_TECLA
+
+    MOV AL, ':'
+
+
+LEER_GUARDAR:
+
+    ; Guardar caracter
+    MOV [DI], AL
+    INC DI
+    INC CX
+
+    ; Mostrarlo en pantalla
+    MOV AH, 0EH
+    MOV BH, 00H
+    INT 10H
+
+    JMP LEER_CADENA_TECLA
+
+
+LEER_CADENA_BACKSPACE:
+
+    ; Si no hay nada escrito, ignorar
+    CMP CX, 0
+    JE LEER_CADENA_TECLA
+
+    DEC DI
+    DEC CX
+
+    ; Borrar del buffer
+    MOV BYTE PTR [DI], 0
+
+    ; Mover cursor atras
+    MOV AH, 0EH
+    MOV AL, 08H
+    INT 10H
+
+    ; Escribir espacio
+    MOV AL, ' '
+    INT 10H
+
+    ; Regresar otra vez
+    MOV AL, 08H
+    INT 10H
+
+    JMP LEER_CADENA_TECLA
+
+
+LEER_CADENA_FIN:
+
+    ; Colocar terminador 0
+    MOV BYTE PTR [DI], 0
+
+    POP SI
+    POP DX
+    POP BX
+    POP AX
+
+    RET
+
+LEER_CADENA ENDP
+
+; =================================================
+; BUSCAR Y REEMPLAZAR
+;
+; Busca todas las coincidencias dentro de
+; BUFFER_TEXTO y las reemplaza.
+;
+; Por ahora, buscar y reemplazar deben tener
+; exactamente la misma longitud.
+; =================================================
+
+BUSCAR_REEMPLAZAR PROC NEAR
+
+    PUSH AX
+    PUSH BX
+    PUSH CX
+    PUSH DX
+    PUSH SI
+    PUSH DI
+    PUSH BP
+
+    ; No hacer nada si el texto a buscar esta vacio
+    CMP LARGO_BUSCAR, 0
+    JNE BR_REVISAR_LARGOS
+
+    JMP BR_FIN
+
+
+BR_REVISAR_LARGOS:
+
+    ; Por ahora ambos textos deben tener el mismo largo
+    MOV AL, LARGO_BUSCAR
+    CMP AL, LARGO_REEMPLAZAR
+    JE BR_INICIAR
+
+    JMP BR_FIN
+
+
+BR_INICIAR:
+
+    ; SI = posicion actual dentro del documento
+    XOR SI, SI
+
+
+BR_SIGUIENTE_POSICION:
+
+    ; -------------------------------------------------
+    ; Verificar que todavia haya suficiente espacio
+    ; para comparar toda la palabra
+    ; -------------------------------------------------
+
+    MOV AX, SI
+
+    XOR BX, BX
+    MOV BL, LARGO_BUSCAR
+
+    ADD AX, BX
+
+    CMP AX, 1840
+    JBE BR_COMPARAR
+
+    JMP BR_FIN
+
+
+BR_COMPARAR:
+
+    ; Guardar posicion inicial
+    MOV BP, SI
+
+    ; DI apunta al texto que buscamos
+    LEA DI, BUSCAR_TEXTO
+
+    ; CX = cantidad de caracteres a comparar
+    XOR CX, CX
+    MOV CL, LARGO_BUSCAR
+
+
+BR_COMPARAR_LOOP:
+
+    MOV AL, BUFFER_TEXTO[SI]
+
+    CMP AL, [DI]
+    JNE BR_NO_COINCIDE
+
+    INC SI
+    INC DI
+
+    LOOP BR_COMPARAR_LOOP
+
+    ; Si llegamos aqui, encontramos coincidencia
+    JMP BR_REEMPLAZAR
+
+
+BR_NO_COINCIDE:
+
+    ; Volver a la posicion inicial
+    MOV SI, BP
+
+    ; Probar desde el siguiente caracter
+    INC SI
+
+    JMP BR_SIGUIENTE_POSICION
+
+
+BR_REEMPLAZAR:
+
+    ; Volver al inicio de la coincidencia
+    MOV SI, BP
+
+    ; DI apunta al texto de reemplazo
+    LEA DI, REEMPLAZAR_TEXTO
+
+    XOR CX, CX
+    MOV CL, LARGO_REEMPLAZAR
+
+
+BR_REEMPLAZAR_LOOP:
+
+    MOV AL, [DI]
+    MOV BUFFER_TEXTO[SI], AL
+
+    INC SI
+    INC DI
+
+    LOOP BR_REEMPLAZAR_LOOP
+
+    ; SI ya queda despues de la palabra reemplazada
+    ; Continuar buscando desde ahi
+    JMP BR_SIGUIENTE_POSICION
+
+
+BR_FIN:
+
+    POP BP
+    POP DI
+    POP SI
+    POP DX
+    POP CX
+    POP BX
+    POP AX
+
+    RET
+
+BUSCAR_REEMPLAZAR ENDP
 
 ; =================================================
 ; FIN DEL PROGRAMA
