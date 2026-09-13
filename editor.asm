@@ -61,6 +61,26 @@ NUM_FONDO    DB 0
 ; Los bits altos del atributo representan el fondo
 FONDO_ACTUAL DB 00H
 
+; -------------------------------------------------
+; PANTALLA DE AYUDA
+; -------------------------------------------------
+
+TITULOAYUDA DB 'ATAJOS DEL EDITOR$'
+
+AYUDA1 DB 'ALT+C  - Centrar cursor en la linea actual$'
+AYUDA2 DB 'ALT+U  - Ir al primer renglon$'
+AYUDA3 DB 'ALT+D  - Ir al ultimo renglon$'
+AYUDA4 DB 'ALT+M  - Cambiar color de letra$'
+AYUDA5 DB 'ALT+N  - Cambiar color de fondo$'
+AYUDA6 DB 'ALT+I  - Insertar imagen 1$'
+AYUDA7 DB 'ALT+J  - Insertar imagen 2$'
+AYUDA8 DB 'ALT+B  - Buscar y reemplazar$'
+AYUDA9 DB 'ALT+H  - Mostrar esta ayuda$'
+AYUDA10 DB 'ALT+Z  - Regresar al menu principal$'
+AYUDA11 DB 'ALT+S  - Guardar y salir$'
+
+VOLVERAYUDA DB 'Presiona cualquier tecla para regresar$'
+
 ; Mensaje temporal para identificar la pantalla
 TITULOEDIT  DB 'EDITOR DE TEXTO$'
 
@@ -195,14 +215,26 @@ REVISAR_ALT_U:
 REVISAR_ALT_D:
 
     ; Alt + D
-    ; Scan code de D = 20H
     CMP AH, 20H
+    JNE REVISAR_ALT_H
+
+    CMP AL, 00H
+    JNE REVISAR_ALT_H
+
+    JMP ULTIMO_RENGLON
+
+
+REVISAR_ALT_H:
+
+    ; Alt + H
+    ; Scan code de H = 23H
+    CMP AH, 23H
     JNE REVISAR_ESCAPE
 
     CMP AL, 00H
     JNE REVISAR_ESCAPE
 
-    JMP ULTIMO_RENGLON
+    JMP MOSTRAR_AYUDA
 
 
 REVISAR_ESCAPE:
@@ -603,6 +635,199 @@ ULTIMO_RENGLON:
     MOV CURSORY, 24
 
     JMP CICLO_EDITOR
+
+; =================================================
+; ALT + H - MOSTRAR AYUDA
+; =================================================
+
+MOSTRAR_AYUDA:
+
+    ; Limpiar pantalla
+    MOV AX, 0003H
+    INT 10H
+
+    ; Titulo
+    MOV BH, 1
+    MOV BL, 30
+    LEA DX, TITULOAYUDA
+    CALL MOSTRAR_TEXTO
+
+    ; Atajos
+    MOV BH, 3
+    MOV BL, 15
+    LEA DX, AYUDA1
+    CALL MOSTRAR_TEXTO
+
+    MOV BH, 4
+    MOV BL, 15
+    LEA DX, AYUDA2
+    CALL MOSTRAR_TEXTO
+
+    MOV BH, 5
+    MOV BL, 15
+    LEA DX, AYUDA3
+    CALL MOSTRAR_TEXTO
+
+    MOV BH, 6
+    MOV BL, 15
+    LEA DX, AYUDA4
+    CALL MOSTRAR_TEXTO
+
+    MOV BH, 7
+    MOV BL, 15
+    LEA DX, AYUDA5
+    CALL MOSTRAR_TEXTO
+
+    MOV BH, 8
+    MOV BL, 15
+    LEA DX, AYUDA6
+    CALL MOSTRAR_TEXTO
+
+    MOV BH, 9
+    MOV BL, 15
+    LEA DX, AYUDA7
+    CALL MOSTRAR_TEXTO
+
+    MOV BH, 10
+    MOV BL, 15
+    LEA DX, AYUDA8
+    CALL MOSTRAR_TEXTO
+
+    MOV BH, 11
+    MOV BL, 15
+    LEA DX, AYUDA9
+    CALL MOSTRAR_TEXTO
+
+    MOV BH, 12
+    MOV BL, 15
+    LEA DX, AYUDA10
+    CALL MOSTRAR_TEXTO
+
+    MOV BH, 13
+    MOV BL, 15
+    LEA DX, AYUDA11
+    CALL MOSTRAR_TEXTO
+
+    MOV BH, 16
+    MOV BL, 20
+    LEA DX, VOLVERAYUDA
+    CALL MOSTRAR_TEXTO
+
+    ; Esperar cualquier tecla
+    MOV AH, 00H
+    INT 16H
+
+    ; Regresar al editor
+    JMP REDIBUJAR_EDITOR
+
+; =================================================
+; REDIBUJAR EDITOR DESDE MEMORIA
+; =================================================
+
+REDIBUJAR_EDITOR:
+
+    ; Limpiar pantalla
+    MOV AX, 0003H
+    INT 10H
+
+    ; Mostrar titulo nuevamente
+    MOV AH, 02H
+    MOV BH, 00H
+    MOV DH, 00H
+    MOV DL, 32
+    INT 10H
+
+    LEA DX, TITULOEDIT
+    MOV AH, 09H
+    INT 21H
+
+    ; Comenzar desde la primera posicion
+    XOR SI, SI
+
+    MOV DH, 2
+    MOV DL, 0
+
+
+REDIBUJAR_SIGUIENTE:
+
+    ; Revisar si terminamos las 1840 posiciones
+    CMP SI, 1840
+    JAE REDIBUJAR_FIN
+
+    ; Posicionar cursor
+    MOV AH, 02H
+    MOV BH, 00H
+    INT 10H
+
+    ; Obtener caracter
+    MOV AL, BUFFER_TEXTO[SI]
+
+    ; Obtener atributo guardado
+    MOV BL, BUFFER_COLOR[SI]
+
+    ; Dibujar caracter
+    MOV AH, 09H
+    MOV BH, 00H
+    MOV CX, 1
+    INT 10H
+
+    ; Siguiente posicion
+    INC SI
+    INC DL
+
+    CMP DL, 80
+    JB REDIBUJAR_SIGUIENTE
+
+    ; Siguiente renglon
+    MOV DL, 0
+    INC DH
+
+    JMP REDIBUJAR_SIGUIENTE
+
+
+REDIBUJAR_FIN:
+
+    JMP CICLO_EDITOR
+
+; =================================================
+; MOSTRAR TEXTO EN UNA POSICION
+;
+; Entrada:
+;   BH = fila
+;   BL = columna
+;   DX = direccion del texto
+; =================================================
+
+MOSTRAR_TEXTO PROC NEAR
+
+    PUSH AX
+    PUSH BX
+    PUSH DX
+    PUSH SI
+
+    ; Guardar direccion del texto
+    MOV SI, DX
+
+    ; Posicionar cursor
+    MOV DH, BH
+    MOV DL, BL
+    MOV AH, 02H
+    MOV BH, 00H
+    INT 10H
+
+    ; Mostrar texto
+    MOV DX, SI
+    MOV AH, 09H
+    INT 21H
+
+    POP SI
+    POP DX
+    POP BX
+    POP AX
+
+    RET
+
+MOSTRAR_TEXTO ENDP    
 
 ; =================================================
 ; FIN DEL PROGRAMA
