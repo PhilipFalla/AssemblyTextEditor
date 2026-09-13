@@ -5,23 +5,21 @@ TITLE "PROYECTO 1 - EDITOR DE TEXTO"
 
 .DATA
 
-; -------------------------------------------------
+; =================================================
 ; VARIABLES DE LA PANTALLA DE EDICION
-; -------------------------------------------------
+; =================================================
 
 ; Posicion actual del cursor
 CURSORX     DB 0
 CURSORY     DB 2
 
-; -------------------------------------------------
+
+; =================================================
 ; BUFFER DEL DOCUMENTO
-; -------------------------------------------------
+; =================================================
 
 ; Area editable:
 ; 80 columnas x 23 renglones = 1840 caracteres
-;
-; Cada posicion del buffer representa una posicion
-; visible de la pantalla.
 ;
 ; Fila 2  -> posiciones 0 - 79
 ; Fila 3  -> posiciones 80 - 159
@@ -30,91 +28,96 @@ CURSORY     DB 2
 
 BUFFER_TEXTO DB 1840 DUP(' ')
 
-; -------------------------------------------------
-; COLORES DEL TEXTO
-; -------------------------------------------------
 
-; Guarda el color de cada caracter del documento
+; =================================================
+; COLORES DEL TEXTO
+; =================================================
+
+; Guarda el atributo de cada caracter
 BUFFER_COLOR DB 1840 DUP(07H)
 
-; Color que se utilizara para los nuevos caracteres
+; Color utilizado para nuevos caracteres
 ; 07H = blanco
 COLOR_ACTUAL DB 07H
 
-; Controla cual de los 3 colores esta seleccionado
 ; 0 = blanco
 ; 1 = verde
 ; 2 = celeste
 NUM_COLOR    DB 0
 
-; -------------------------------------------------
-; COLOR DE FONDO
-; -------------------------------------------------
 
-; Controla cual de los 3 fondos esta seleccionado
+; =================================================
+; COLOR DE FONDO
+; =================================================
+
 ; 0 = negro
 ; 1 = azul
 ; 2 = rojo
 NUM_FONDO    DB 0
 
-; Valor del fondo actual
-; Los bits altos del atributo representan el fondo
+; Bits altos del atributo representan el fondo
 FONDO_ACTUAL DB 00H
 
-; -------------------------------------------------
-; IMAGENES DEL DOCUMENTO
-; -------------------------------------------------
 
-; Maximo de imagenes que se pueden insertar
+; =================================================
+; IMAGENES DEL DOCUMENTO
+; =================================================
+
 MAX_IMAGENES EQU 20
 
-; Cantidad de imagenes actualmente insertadas
+; Cantidad de imagenes insertadas
 NUM_IMAGENES DB 0
 
-; Informacion de cada imagen
-; TIPO: 1 = corazon, 2 = flor
-IMAGEN_TIPO DB MAX_IMAGENES DUP(0)
-IMAGEN_X    DB MAX_IMAGENES DUP(0)
-IMAGEN_Y    DB MAX_IMAGENES DUP(0)
+; Tipo:
+; 1 = corazon
+; 2 = flor
+IMAGEN_TIPO  DB MAX_IMAGENES DUP(0)
+IMAGEN_X     DB MAX_IMAGENES DUP(0)
+IMAGEN_Y     DB MAX_IMAGENES DUP(0)
 
-; -------------------------------------------------
+
+; =================================================
 ; PANTALLA DE AYUDA
-; -------------------------------------------------
+; =================================================
 
 TITULOAYUDA DB 'ATAJOS DEL EDITOR$'
 
-AYUDA1 DB 'ALT+C  - Centrar cursor en la linea actual$'
-AYUDA2 DB 'ALT+U  - Ir al primer renglon$'
-AYUDA3 DB 'ALT+D  - Ir al ultimo renglon$'
-AYUDA4 DB 'ALT+M  - Cambiar color de letra$'
-AYUDA5 DB 'ALT+N  - Cambiar color de fondo$'
-AYUDA6 DB 'ALT+I  - Insertar imagen 1$'
-AYUDA7 DB 'ALT+J  - Insertar imagen 2$'
-AYUDA8 DB 'ALT+B  - Buscar y reemplazar$'
-AYUDA9 DB 'ALT+H  - Mostrar esta ayuda$'
+AYUDA1  DB 'ALT+C  - Centrar cursor en la linea actual$'
+AYUDA2  DB 'ALT+U  - Ir al primer renglon$'
+AYUDA3  DB 'ALT+D  - Ir al ultimo renglon$'
+AYUDA4  DB 'ALT+M  - Cambiar color de letra$'
+AYUDA5  DB 'ALT+N  - Cambiar color de fondo$'
+AYUDA6  DB 'ALT+I  - Insertar imagen 1$'
+AYUDA7  DB 'ALT+J  - Insertar imagen 2$'
+AYUDA8  DB 'ALT+B  - Buscar y reemplazar$'
+AYUDA9  DB 'ALT+H  - Mostrar esta ayuda$'
 AYUDA10 DB 'ALT+Z  - Regresar al menu principal$'
 AYUDA11 DB 'ALT+S  - Guardar y salir$'
 
 VOLVERAYUDA DB 'Presiona cualquier tecla para regresar$'
 
-; -------------------------------------------------
+
+; =================================================
 ; BUSCAR Y REEMPLAZAR
-; -------------------------------------------------
+; =================================================
 
-TITULOBUSCAR DB 'BUSCAR Y REEMPLAZAR$'
-TXT_BUSCAR   DB 'Texto a buscar: $'
+TITULOBUSCAR   DB 'BUSCAR Y REEMPLAZAR$'
+TXT_BUSCAR     DB 'Texto a buscar: $'
 TXT_REEMPLAZAR DB 'Reemplazar por: $'
-TXT_ENTER    DB 'Presiona ENTER para continuar$'
 
-; Maximo 20 caracteres para cada entrada
+; Maximo 20 caracteres
 BUSCAR_TEXTO     DB 21 DUP(0)
 REEMPLAZAR_TEXTO DB 21 DUP(0)
 
 LARGO_BUSCAR     DB 0
 LARGO_REEMPLAZAR DB 0
 
-; Mensaje temporal para identificar la pantalla
-TITULOEDIT  DB 'EDITOR DE TEXTO$'
+
+; =================================================
+; TITULO DEL EDITOR
+; =================================================
+
+TITULOEDIT DB 'EDITOR DE TEXTO$'
 
 
 .CODE
@@ -125,14 +128,11 @@ MAIN PROC FAR
     MOV AX, @DATA
     MOV DS, AX
 
-    ; Limpiar pantalla y entrar en modo texto 80x25
+    ; Modo texto 80x25
     MOV AX, 0003H
     INT 10H
 
-    ; -------------------------------------------------
-    ; MOSTRAR TITULO
-    ; -------------------------------------------------
-
+    ; Mostrar titulo
     MOV AH, 02H
     MOV BH, 00H
     MOV DH, 00H
@@ -143,7 +143,7 @@ MAIN PROC FAR
     MOV AH, 09H
     INT 21H
 
-    ; Colocar cursor al inicio del area de escritura
+    ; Posicion inicial del cursor
     MOV CURSORX, 0
     MOV CURSORY, 2
 
@@ -154,26 +154,28 @@ MAIN PROC FAR
 
 CICLO_EDITOR:
 
-    ; Colocar cursor en la posicion actual
+    ; Colocar cursor
     MOV AH, 02H
     MOV BH, 00H
     MOV DH, CURSORY
     MOV DL, CURSORX
     INT 10H
 
-    ; Esperar una tecla
-    ; AL = codigo ASCII
+    ; Leer tecla
+    ; AL = ASCII
     ; AH = scan code
     MOV AH, 00H
     INT 16H
 
-    ; -------------------------------------------------
-    ; DETECTAR FLECHAS
-    ; -------------------------------------------------
+
+; =================================================
+; DETECTAR FLECHAS
+; =================================================
 
     CMP AH, 48H
     JNE REVISAR_ABAJO
     JMP FLECHA_ARRIBA
+
 
 REVISAR_ABAJO:
 
@@ -181,11 +183,13 @@ REVISAR_ABAJO:
     JNE REVISAR_IZQUIERDA
     JMP FLECHA_ABAJO
 
+
 REVISAR_IZQUIERDA:
 
     CMP AH, 4BH
     JNE REVISAR_DERECHA
     JMP FLECHA_IZQUIERDA
+
 
 REVISAR_DERECHA:
 
@@ -193,6 +197,10 @@ REVISAR_DERECHA:
     JNE REVISAR_ALT_M
     JMP FLECHA_DERECHA
 
+
+; =================================================
+; DETECTAR ATAJOS ALT
+; =================================================
 
 REVISAR_ALT_M:
 
@@ -221,7 +229,6 @@ REVISAR_ALT_N:
 REVISAR_ALT_C:
 
     ; Alt + C
-    ; Scan code de C = 2EH
     CMP AH, 2EH
     JNE REVISAR_ALT_U
 
@@ -234,7 +241,6 @@ REVISAR_ALT_C:
 REVISAR_ALT_U:
 
     ; Alt + U
-    ; Scan code de U = 16H
     CMP AH, 16H
     JNE REVISAR_ALT_D
 
@@ -283,7 +289,6 @@ REVISAR_ALT_J:
 REVISAR_ALT_B:
 
     ; Alt + B
-    ; Scan code de B = 30H
     CMP AH, 30H
     JNE REVISAR_ALT_H
 
@@ -308,21 +313,33 @@ REVISAR_ALT_H:
 REVISAR_ALT_Z:
 
     ; Alt + Z
-    ; Scan code de Z = 2CH
     CMP AH, 2CH
+    JNE REVISAR_ALT_S
+
+    CMP AL, 00H
+    JNE REVISAR_ALT_S
+
+    JMP REGRESAR_MENU
+
+
+REVISAR_ALT_S:
+
+    ; Alt + S
+    CMP AH, 1FH
     JNE REVISAR_ESCAPE
 
     CMP AL, 00H
     JNE REVISAR_ESCAPE
 
-    JMP REGRESAR_MENU
+    JMP GUARDAR_SALIR
 
 
 REVISAR_ESCAPE:
 
-    ; ESC - salida temporal
+    ; ESC temporal para pruebas
     CMP AL, 1BH
     JNE VALIDAR_NUMERO
+
     JMP FIN_PROGRAMA
 
 
@@ -393,7 +410,7 @@ VALIDAR_DOSPUNTOS:
 VALIDAR_DOSPUNTOS_DOSBOX:
 
     ; En este DOSBox la tecla usada para :
-    ; llega como >
+    ; puede llegar como >
     CMP AL, '>'
     JNE CARACTER_INVALIDO
 
@@ -415,41 +432,41 @@ ESCRIBIR:
     ; Guardar temporalmente el caracter
     MOV DL, AL
 
-    ; Calcular donde corresponde dentro del buffer
+    ; Calcular posicion dentro del buffer
     CALL CALCULAR_POSICION
 
-    ; Guardar caracter en memoria
+    ; Guardar caracter
     MOV BUFFER_TEXTO[SI], DL
 
-    ; -------------------------------------------------
-    ; Crear atributo del caracter
+    ; Crear atributo:
     ; fondo + color de letra
-    ; -------------------------------------------------
-
     MOV BL, FONDO_ACTUAL
     OR BL, COLOR_ACTUAL
 
-    ; Guardar atributo completo de este caracter
+    ; Guardar atributo
     MOV BUFFER_COLOR[SI], BL
 
     ; Recuperar caracter
     MOV AL, DL
 
-    ; Mostrar caracter utilizando su atributo
+    ; Mostrar caracter
     MOV AH, 09H
     MOV BH, 00H
     MOV CX, 1
     INT 10H
 
-    ; Revisar si estamos al final del renglon
+    ; Mantener las imagenes siempre encima del texto
+    CALL REDIBUJAR_IMAGENES
+
+    ; Revisar final del renglon
     CMP CURSORX, 79
     JNE ESCRIBIR_AVANZAR_X
 
-    ; Estamos en columna 79
+    ; Si estamos en columna 79,
+    ; revisar si tambien estamos en la ultima fila
     CMP CURSORY, 24
     JNE ESCRIBIR_SIGUIENTE_LINEA
 
-    ; Estamos en la ultima posicion disponible
     JMP CICLO_EDITOR
 
 
@@ -467,7 +484,7 @@ ESCRIBIR_SIGUIENTE_LINEA:
 
 
 ; =================================================
-; FLECHA ARRIBA
+; MOVIMIENTO DEL CURSOR
 ; =================================================
 
 FLECHA_ARRIBA:
@@ -475,7 +492,6 @@ FLECHA_ARRIBA:
     CMP CURSORY, 2
     JNE ARRIBA_MOVER
 
-    ; Ya estamos en el limite
     JMP CICLO_EDITOR
 
 
@@ -485,16 +501,11 @@ ARRIBA_MOVER:
     JMP CICLO_EDITOR
 
 
-; =================================================
-; FLECHA ABAJO
-; =================================================
-
 FLECHA_ABAJO:
 
     CMP CURSORY, 24
     JNE ABAJO_MOVER
 
-    ; Ya estamos en el limite
     JMP CICLO_EDITOR
 
 
@@ -504,28 +515,20 @@ ABAJO_MOVER:
     JMP CICLO_EDITOR
 
 
-; =================================================
-; FLECHA IZQUIERDA
-; =================================================
-
 FLECHA_IZQUIERDA:
 
     CMP CURSORX, 0
     JE IZQUIERDA_INICIO_LINEA
 
-    ; Movimiento normal
     DEC CURSORX
     JMP CICLO_EDITOR
 
 
 IZQUIERDA_INICIO_LINEA:
 
-    ; Estamos en columna 0
-    ; Revisar si tambien estamos en el primer renglon
     CMP CURSORY, 2
     JNE IZQUIERDA_LINEA_ANTERIOR
 
-    ; No podemos movernos mas
     JMP CICLO_EDITOR
 
 
@@ -536,28 +539,20 @@ IZQUIERDA_LINEA_ANTERIOR:
     JMP CICLO_EDITOR
 
 
-; =================================================
-; FLECHA DERECHA
-; =================================================
-
 FLECHA_DERECHA:
 
     CMP CURSORX, 79
     JE DERECHA_FIN_LINEA
 
-    ; Movimiento normal
     INC CURSORX
     JMP CICLO_EDITOR
 
 
 DERECHA_FIN_LINEA:
 
-    ; Estamos en columna 79
-    ; Revisar si tambien estamos en el ultimo renglon
     CMP CURSORY, 24
     JNE DERECHA_LINEA_SIGUIENTE
 
-    ; No podemos movernos mas
     JMP CICLO_EDITOR
 
 
@@ -567,19 +562,15 @@ DERECHA_LINEA_SIGUIENTE:
     MOV CURSORX, 0
     JMP CICLO_EDITOR
 
+
 ; =================================================
 ; CALCULAR POSICION EN EL BUFFER
-; =================================================
-;
-; Entrada:
-;   CURSORX = columna actual
-;   CURSORY = renglon actual
-;
-; Salida:
-;   SI = indice dentro de BUFFER_TEXTO
 ;
 ; Formula:
-;   (CURSORY - 2) * 80 + CURSORX
+; (CURSORY - 2) * 80 + CURSORX
+;
+; Salida:
+; SI = indice dentro del buffer
 ; =================================================
 
 CALCULAR_POSICION PROC NEAR
@@ -588,26 +579,18 @@ CALCULAR_POSICION PROC NEAR
     PUSH BX
     PUSH DX
 
-    ; Obtener numero de renglon dentro del editor
     MOV AL, CURSORY
     SUB AL, 2
 
-    ; Convertir a 16 bits
     XOR AH, AH
 
-    ; Multiplicar renglon por 80
     MOV BX, 80
     MUL BX
 
-    ; AX ahora contiene:
-    ; (CURSORY - 2) * 80
-
-    ; Agregar columna actual
     XOR BX, BX
     MOV BL, CURSORX
     ADD AX, BX
 
-    ; Guardar indice en SI
     MOV SI, AX
 
     POP DX
@@ -617,6 +600,7 @@ CALCULAR_POSICION PROC NEAR
     RET
 
 CALCULAR_POSICION ENDP
+
 
 ; =================================================
 ; ALT + M - CAMBIAR COLOR DE LETRA
@@ -630,9 +614,10 @@ CAMBIAR_COLOR:
     CMP NUM_COLOR, 1
     JE COLOR_CELESTE
 
-    ; Si estaba en color 2, regresar a blanco
+    ; Regresar a blanco
     MOV NUM_COLOR, 0
     MOV COLOR_ACTUAL, 07H
+
     JMP CICLO_EDITOR
 
 
@@ -640,6 +625,7 @@ COLOR_VERDE:
 
     MOV NUM_COLOR, 1
     MOV COLOR_ACTUAL, 02H
+
     JMP CICLO_EDITOR
 
 
@@ -647,7 +633,9 @@ COLOR_CELESTE:
 
     MOV NUM_COLOR, 2
     MOV COLOR_ACTUAL, 03H
+
     JMP CICLO_EDITOR
+
 
 ; =================================================
 ; ALT + N - CAMBIAR COLOR DE FONDO
@@ -661,9 +649,10 @@ CAMBIAR_FONDO:
     CMP NUM_FONDO, 1
     JE FONDO_ROJO
 
-    ; Si estaba en fondo rojo, regresar a negro
+    ; Regresar a negro
     MOV NUM_FONDO, 0
     MOV FONDO_ACTUAL, 00H
+
     JMP CICLO_EDITOR
 
 
@@ -671,6 +660,7 @@ FONDO_AZUL:
 
     MOV NUM_FONDO, 1
     MOV FONDO_ACTUAL, 10H
+
     JMP CICLO_EDITOR
 
 
@@ -678,7 +668,9 @@ FONDO_ROJO:
 
     MOV NUM_FONDO, 2
     MOV FONDO_ACTUAL, 40H
+
     JMP CICLO_EDITOR
+
 
 ; =================================================
 ; ALT + C - CENTRAR CURSOR
@@ -686,8 +678,7 @@ FONDO_ROJO:
 
 CENTRAR_CURSOR:
 
-    ; Pantalla de 80 columnas: 0 - 79
-    ; Columna 40 = aproximadamente el centro
+    ; Centro aproximado de pantalla de 80 columnas
     MOV CURSORX, 40
 
     JMP CICLO_EDITOR
@@ -699,8 +690,7 @@ CENTRAR_CURSOR:
 
 PRIMER_RENGLON:
 
-    ; Nuestro primer renglon editable es el 2
-    ; porque las filas 0 y 1 quedan para interfaz
+    ; Primer renglon editable
     MOV CURSORY, 2
 
     JMP CICLO_EDITOR
@@ -712,10 +702,11 @@ PRIMER_RENGLON:
 
 ULTIMO_RENGLON:
 
-    ; Ultimo renglon de la pantalla 80x25
+    ; Ultimo renglon editable
     MOV CURSORY, 24
 
     JMP CICLO_EDITOR
+
 
 ; =================================================
 ; ALT + H - MOSTRAR AYUDA
@@ -798,8 +789,8 @@ MOSTRAR_AYUDA:
     MOV AH, 00H
     INT 16H
 
-    ; Regresar al editor
     JMP REDIBUJAR_EDITOR
+
 
 ; =================================================
 ; REDIBUJAR EDITOR DESDE MEMORIA
@@ -811,7 +802,7 @@ REDIBUJAR_EDITOR:
     MOV AX, 0003H
     INT 10H
 
-    ; Mostrar titulo nuevamente
+    ; Mostrar titulo
     MOV AH, 02H
     MOV BH, 00H
     MOV DH, 00H
@@ -822,7 +813,7 @@ REDIBUJAR_EDITOR:
     MOV AH, 09H
     INT 21H
 
-    ; Comenzar desde la primera posicion
+    ; Primera posicion del buffer
     XOR SI, SI
 
     MOV DH, 2
@@ -831,7 +822,6 @@ REDIBUJAR_EDITOR:
 
 REDIBUJAR_SIGUIENTE:
 
-    ; Revisar si terminamos las 1840 posiciones
     CMP SI, 1840
     JAE REDIBUJAR_FIN
 
@@ -840,26 +830,24 @@ REDIBUJAR_SIGUIENTE:
     MOV BH, 00H
     INT 10H
 
-    ; Obtener caracter
+    ; Caracter
     MOV AL, BUFFER_TEXTO[SI]
 
-    ; Obtener atributo guardado
+    ; Atributo
     MOV BL, BUFFER_COLOR[SI]
 
-    ; Dibujar caracter
+    ; Dibujar
     MOV AH, 09H
     MOV BH, 00H
     MOV CX, 1
     INT 10H
 
-    ; Siguiente posicion
     INC SI
     INC DL
 
     CMP DL, 80
     JB REDIBUJAR_SIGUIENTE
 
-    ; Siguiente renglon
     MOV DL, 0
     INC DH
 
@@ -868,30 +856,19 @@ REDIBUJAR_SIGUIENTE:
 
 REDIBUJAR_FIN:
 
-    ; Guardar posicion real del cursor
-    MOV AL, CURSORX
-    MOV AH, CURSORY
-
-    PUSH AX
-
-    ; Redibujar todas las imagenes encima del texto
+    ; Las imagenes deben quedar encima del texto
     CALL REDIBUJAR_IMAGENES
 
-    ; Recuperar posicion real del cursor
-    POP AX
-
-    MOV CURSORX, AL
-    MOV CURSORY, AH
-
     JMP CICLO_EDITOR
+
 
 ; =================================================
 ; MOSTRAR TEXTO EN UNA POSICION
 ;
 ; Entrada:
-;   BH = fila
-;   BL = columna
-;   DX = direccion del texto
+; BH = fila
+; BL = columna
+; DX = direccion del texto
 ; =================================================
 
 MOSTRAR_TEXTO PROC NEAR
@@ -901,7 +878,6 @@ MOSTRAR_TEXTO PROC NEAR
     PUSH DX
     PUSH SI
 
-    ; Guardar direccion del texto
     MOV SI, DX
 
     ; Posicionar cursor
@@ -911,7 +887,7 @@ MOSTRAR_TEXTO PROC NEAR
     MOV BH, 00H
     INT 10H
 
-    ; Mostrar texto
+    ; Mostrar cadena
     MOV DX, SI
     MOV AH, 09H
     INT 21H
@@ -923,7 +899,8 @@ MOSTRAR_TEXTO PROC NEAR
 
     RET
 
-MOSTRAR_TEXTO ENDP    
+MOSTRAR_TEXTO ENDP
+
 
 ; =================================================
 ; ALT + Z - REGRESAR AL MENU PRINCIPAL
@@ -931,21 +908,18 @@ MOSTRAR_TEXTO ENDP
 
 REGRESAR_MENU:
 
-    ; Limpiar pantalla
-    MOV AX, 0003H
-    INT 10H
-
     ; -------------------------------------------------
     ; INTEGRACION CON PERSONA A
     ;
-    ; Aqui se llamara al procedimiento del menu
-    ; principal cuando ambos modulos se unan.
+    ; Aqui se conectara el procedimiento que regresa
+    ; al menu principal.
     ;
-    ; Por ahora termina el programa para poder
-    ; probar que ALT+Z fue detectado correctamente.
+    ; Por ahora termina el programa para comprobar
+    ; que Alt+Z fue detectado correctamente.
     ; -------------------------------------------------
 
     JMP FIN_PROGRAMA
+
 
 ; =================================================
 ; ALT + I - INSERTAR CORAZON
@@ -953,7 +927,8 @@ REGRESAR_MENU:
 
 INSERTAR_CORAZON:
 
-    ; Verificar que el corazon quepa horizontalmente
+    ; Corazon de 7 x 5
+    ; Verificar limite horizontal
     CMP CURSORX, 73
     JBE CORAZON_REVISAR_Y
 
@@ -962,7 +937,7 @@ INSERTAR_CORAZON:
 
 CORAZON_REVISAR_Y:
 
-    ; Verificar que el corazon quepa verticalmente
+    ; Verificar limite vertical
     CMP CURSORY, 20
     JBE CORAZON_REVISAR_CANTIDAD
 
@@ -971,7 +946,6 @@ CORAZON_REVISAR_Y:
 
 CORAZON_REVISAR_CANTIDAD:
 
-    ; Revisar si ya llegamos al maximo
     CMP NUM_IMAGENES, MAX_IMAGENES
     JB CORAZON_GUARDAR
 
@@ -980,33 +954,31 @@ CORAZON_REVISAR_CANTIDAD:
 
 CORAZON_GUARDAR:
 
-    ; Obtener indice de la nueva imagen
     XOR BX, BX
     MOV BL, NUM_IMAGENES
 
     ; Tipo 1 = corazon
     MOV IMAGEN_TIPO[BX], 1
 
-    ; Guardar posicion actual del cursor
+    ; Guardar posicion
     MOV AL, CURSORX
     MOV IMAGEN_X[BX], AL
 
     MOV AL, CURSORY
     MOV IMAGEN_Y[BX], AL
 
-    ; Aumentar cantidad
     INC NUM_IMAGENES
 
-    ; Dibujar el corazon
     CALL DIBUJAR_CORAZON
 
     JMP CICLO_EDITOR
 
+
 ; =================================================
 ; DIBUJAR CORAZON
 ;
-; Utiliza CURSORX y CURSORY como esquina
-; superior izquierda de la imagen.
+; CURSORX y CURSORY representan la esquina
+; superior izquierda.
 ; =================================================
 
 DIBUJAR_CORAZON PROC NEAR
@@ -1016,14 +988,10 @@ DIBUJAR_CORAZON PROC NEAR
     PUSH CX
     PUSH DX
 
-    ; Color rojo claro
+    ; Rojo claro
     MOV BL, 0CH
 
-    ; -----------------------------
-    ; FILA 1
-    ;  XX XX
-    ; -----------------------------
-
+    ; FILA 1 - XX XX
     MOV DH, CURSORY
     MOV DL, CURSORX
     INC DL
@@ -1038,7 +1006,6 @@ DIBUJAR_CORAZON PROC NEAR
     MOV CX, 2
     INT 10H
 
-    ; Segundo bloque de la fila
     ADD DL, 3
 
     MOV AH, 02H
@@ -1051,10 +1018,7 @@ DIBUJAR_CORAZON PROC NEAR
     MOV CX, 2
     INT 10H
 
-    ; -----------------------------
     ; FILA 2 - XXXXXXX
-    ; -----------------------------
-
     MOV DH, CURSORY
     INC DH
     MOV DL, CURSORX
@@ -1069,10 +1033,7 @@ DIBUJAR_CORAZON PROC NEAR
     MOV CX, 7
     INT 10H
 
-    ; -----------------------------
     ; FILA 3 - XXXXXXX
-    ; -----------------------------
-
     MOV DH, CURSORY
     ADD DH, 2
     MOV DL, CURSORX
@@ -1087,10 +1048,7 @@ DIBUJAR_CORAZON PROC NEAR
     MOV CX, 7
     INT 10H
 
-    ; -----------------------------
-    ; FILA 4 -  XXXXX
-    ; -----------------------------
-
+    ; FILA 4 - XXXXX
     MOV DH, CURSORY
     ADD DH, 3
     MOV DL, CURSORX
@@ -1106,10 +1064,7 @@ DIBUJAR_CORAZON PROC NEAR
     MOV CX, 5
     INT 10H
 
-    ; -----------------------------
-    ; FILA 5 -   XXX
-    ; -----------------------------
-
+    ; FILA 5 - XXX
     MOV DH, CURSORY
     ADD DH, 4
     MOV DL, CURSORX
@@ -1134,14 +1089,15 @@ DIBUJAR_CORAZON PROC NEAR
 
 DIBUJAR_CORAZON ENDP
 
+
 ; =================================================
 ; ALT + J - INSERTAR FLOR
 ; =================================================
 
 INSERTAR_FLOR:
 
-    ; La flor mide 7 columnas
-    ; No permitir que salga por la derecha
+    ; Flor de 7 x 5
+    ; Verificar limite horizontal
     CMP CURSORX, 73
     JBE FLOR_REVISAR_Y
 
@@ -1150,8 +1106,7 @@ INSERTAR_FLOR:
 
 FLOR_REVISAR_Y:
 
-    ; La flor mide 5 renglones
-    ; No permitir que salga por abajo
+    ; Verificar limite vertical
     CMP CURSORY, 20
     JBE FLOR_REVISAR_CANTIDAD
 
@@ -1160,7 +1115,6 @@ FLOR_REVISAR_Y:
 
 FLOR_REVISAR_CANTIDAD:
 
-    ; Revisar si ya llegamos al maximo
     CMP NUM_IMAGENES, MAX_IMAGENES
     JB FLOR_GUARDAR
 
@@ -1188,6 +1142,7 @@ FLOR_GUARDAR:
 
     JMP CICLO_EDITOR
 
+
 ; =================================================
 ; DIBUJAR FLOR
 ; =================================================
@@ -1199,13 +1154,10 @@ DIBUJAR_FLOR PROC NEAR
     PUSH CX
     PUSH DX
 
-    ; -----------------------------
-    ; FILA 1 -   X X
-    ; -----------------------------
-
-    ; Rosado claro
+    ; Petalos rosados
     MOV BL, 0DH
 
+    ; FILA 1 - X X
     MOV DH, CURSORY
     MOV DL, CURSORX
     ADD DL, 2
@@ -1232,11 +1184,7 @@ DIBUJAR_FLOR PROC NEAR
     MOV CX, 1
     INT 10H
 
-
-    ; -----------------------------
-    ; FILA 2 -  XXXXX
-    ; -----------------------------
-
+    ; FILA 2 - XXXXX
     MOV DH, CURSORY
     INC DH
     MOV DL, CURSORX
@@ -1252,11 +1200,7 @@ DIBUJAR_FLOR PROC NEAR
     MOV CX, 5
     INT 10H
 
-
-    ; -----------------------------
-    ; FILA 3 -   XXX
-    ; -----------------------------
-
+    ; FILA 3 - XXX
     MOV DH, CURSORY
     ADD DH, 2
     MOV DL, CURSORX
@@ -1272,15 +1216,10 @@ DIBUJAR_FLOR PROC NEAR
     MOV CX, 3
     INT 10H
 
-
-    ; -----------------------------
-    ; FILA 4 - tallo
-    ;    X
-    ; -----------------------------
-
-    ; Verde claro
+    ; Tallo verde
     MOV BL, 0AH
 
+    ; FILA 4
     MOV DH, CURSORY
     ADD DH, 3
     MOV DL, CURSORX
@@ -1296,12 +1235,7 @@ DIBUJAR_FLOR PROC NEAR
     MOV CX, 1
     INT 10H
 
-
-    ; -----------------------------
     ; FILA 5 - hojas
-    ;   XXX
-    ; -----------------------------
-
     MOV DH, CURSORY
     ADD DH, 4
     MOV DL, CURSORX
@@ -1317,7 +1251,6 @@ DIBUJAR_FLOR PROC NEAR
     MOV CX, 3
     INT 10H
 
-
     POP DX
     POP CX
     POP BX
@@ -1327,8 +1260,13 @@ DIBUJAR_FLOR PROC NEAR
 
 DIBUJAR_FLOR ENDP
 
+
 ; =================================================
 ; REDIBUJAR TODAS LAS IMAGENES
+;
+; Preserva CURSORX y CURSORY.
+; De esta forma las imagenes siempre quedan
+; por encima del texto sin mover el cursor real.
 ; =================================================
 
 REDIBUJAR_IMAGENES PROC NEAR
@@ -1339,28 +1277,29 @@ REDIBUJAR_IMAGENES PROC NEAR
     PUSH DX
     PUSH SI
 
-    ; Empezar con la primera imagen
+    ; Guardar posicion real del cursor
+    MOV AL, CURSORX
+    MOV AH, CURSORY
+    PUSH AX
+
     XOR SI, SI
 
-    ; Cantidad total de imagenes
     XOR CX, CX
     MOV CL, NUM_IMAGENES
 
-    ; Si no hay imagenes, terminar
     CMP CX, 0
-    JE REDIBUJAR_IMAGENES_FIN
+    JE REDIBUJAR_IMAGENES_RESTAURAR
 
 
 REDIBUJAR_IMAGEN_LOOP:
 
-    ; Revisar tipo de imagen
-CMP IMAGEN_TIPO[SI], 1
-JE REDIBUJAR_CORAZON_IMG
+    CMP IMAGEN_TIPO[SI], 1
+    JE REDIBUJAR_CORAZON_IMG
 
-CMP IMAGEN_TIPO[SI], 2
-JE REDIBUJAR_FLOR_IMG
+    CMP IMAGEN_TIPO[SI], 2
+    JE REDIBUJAR_FLOR_IMG
 
-JMP REDIBUJAR_SIGUIENTE_IMAGEN
+    JMP REDIBUJAR_SIGUIENTE_IMAGEN
 
 
 REDIBUJAR_CORAZON_IMG:
@@ -1398,8 +1337,6 @@ REDIBUJAR_FLOR_IMG:
     POP SI
     POP CX
 
-    JMP REDIBUJAR_SIGUIENTE_IMAGEN
-
 
 REDIBUJAR_SIGUIENTE_IMAGEN:
 
@@ -1407,7 +1344,13 @@ REDIBUJAR_SIGUIENTE_IMAGEN:
     LOOP REDIBUJAR_IMAGEN_LOOP
 
 
-REDIBUJAR_IMAGENES_FIN:
+REDIBUJAR_IMAGENES_RESTAURAR:
+
+    ; Recuperar posicion real del cursor
+    POP AX
+
+    MOV CURSORX, AL
+    MOV CURSORY, AH
 
     POP SI
     POP DX
@@ -1418,6 +1361,7 @@ REDIBUJAR_IMAGENES_FIN:
     RET
 
 REDIBUJAR_IMAGENES ENDP
+
 
 ; =================================================
 ; ALT + B - PANTALLA BUSCAR Y REEMPLAZAR
@@ -1441,17 +1385,15 @@ PANTALLA_BUSCAR:
     LEA DX, TXT_BUSCAR
     CALL MOSTRAR_TEXTO
 
-    ; Colocar cursor despues del mensaje
+    ; Cursor para entrada
     MOV AH, 02H
     MOV BH, 00H
     MOV DH, 6
     MOV DL, 31
     INT 10H
 
-    ; Limpiar longitud anterior
     MOV LARGO_BUSCAR, 0
 
-    ; Leer texto a buscar
     LEA DI, BUSCAR_TEXTO
     CALL LEER_CADENA
 
@@ -1464,40 +1406,39 @@ PANTALLA_BUSCAR:
     LEA DX, TXT_REEMPLAZAR
     CALL MOSTRAR_TEXTO
 
-    ; Colocar cursor despues del mensaje
+    ; Cursor para entrada
     MOV AH, 02H
     MOV BH, 00H
     MOV DH, 9
     MOV DL, 32
     INT 10H
 
-    ; Limpiar longitud anterior
     MOV LARGO_REEMPLAZAR, 0
 
-    ; Leer reemplazo
     LEA DI, REEMPLAZAR_TEXTO
     CALL LEER_CADENA
 
     MOV AX, CX
     MOV LARGO_REEMPLAZAR, AL
 
-    ; Realizar busqueda y reemplazo
+    ; Realizar reemplazo
     CALL BUSCAR_REEMPLAZAR
 
-    ; Redibujar documento con los cambios
+    ; Regresar al documento
     JMP REDIBUJAR_EDITOR
 
-    ; =================================================
+
+; =================================================
 ; LEER CADENA
 ;
 ; Entrada:
-;   DI = direccion del buffer
+; DI = direccion del buffer
 ;
 ; Salida:
-;   CX = cantidad de caracteres ingresados
+; CX = cantidad de caracteres
 ;
-; ENTER termina la entrada
-; Maximo 20 caracteres
+; ENTER termina la entrada.
+; Maximo 20 caracteres.
 ; =================================================
 
 LEER_CADENA PROC NEAR
@@ -1527,9 +1468,7 @@ LEER_CADENA_TECLA:
     CMP CX, 20
     JAE LEER_CADENA_TECLA
 
-    ; Solo aceptar los caracteres permitidos
-    ; Letras, numeros, coma, punto y dos puntos
-
+    ; Numeros
     CMP AL, '0'
     JB LEER_REVISAR_MAYUS
 
@@ -1539,6 +1478,7 @@ LEER_CADENA_TECLA:
 
 LEER_REVISAR_MAYUS:
 
+    ; Mayusculas
     CMP AL, 'A'
     JB LEER_REVISAR_MINUS
 
@@ -1548,6 +1488,7 @@ LEER_REVISAR_MAYUS:
 
 LEER_REVISAR_MINUS:
 
+    ; Minusculas
     CMP AL, 'a'
     JB LEER_REVISAR_SIGNOS
 
@@ -1566,7 +1507,7 @@ LEER_REVISAR_SIGNOS:
     CMP AL, ':'
     JE LEER_GUARDAR
 
-    ; En tu DOSBox : tambien puede llegar como >
+    ; Compatibilidad con DOSBox usado
     CMP AL, '>'
     JNE LEER_CADENA_TECLA
 
@@ -1580,7 +1521,7 @@ LEER_GUARDAR:
     INC DI
     INC CX
 
-    ; Mostrarlo en pantalla
+    ; Mostrar caracter
     MOV AH, 0EH
     MOV BH, 00H
     INT 10H
@@ -1590,26 +1531,24 @@ LEER_GUARDAR:
 
 LEER_CADENA_BACKSPACE:
 
-    ; Si no hay nada escrito, ignorar
     CMP CX, 0
     JE LEER_CADENA_TECLA
 
     DEC DI
     DEC CX
 
-    ; Borrar del buffer
     MOV BYTE PTR [DI], 0
 
-    ; Mover cursor atras
+    ; Retroceder
     MOV AH, 0EH
     MOV AL, 08H
     INT 10H
 
-    ; Escribir espacio
+    ; Borrar caracter visualmente
     MOV AL, ' '
     INT 10H
 
-    ; Regresar otra vez
+    ; Volver a retroceder
     MOV AL, 08H
     INT 10H
 
@@ -1618,7 +1557,7 @@ LEER_CADENA_BACKSPACE:
 
 LEER_CADENA_FIN:
 
-    ; Colocar terminador 0
+    ; Terminador
     MOV BYTE PTR [DI], 0
 
     POP SI
@@ -1630,14 +1569,14 @@ LEER_CADENA_FIN:
 
 LEER_CADENA ENDP
 
+
 ; =================================================
 ; BUSCAR Y REEMPLAZAR
 ;
 ; Busca todas las coincidencias dentro de
-; BUFFER_TEXTO y las reemplaza.
+; BUFFER_TEXTO.
 ;
-; Por ahora, buscar y reemplazar deben tener
-; exactamente la misma longitud.
+; Las cadenas deben tener la misma longitud.
 ; =================================================
 
 BUSCAR_REEMPLAZAR PROC NEAR
@@ -1650,7 +1589,7 @@ BUSCAR_REEMPLAZAR PROC NEAR
     PUSH DI
     PUSH BP
 
-    ; No hacer nada si el texto a buscar esta vacio
+    ; No buscar una cadena vacia
     CMP LARGO_BUSCAR, 0
     JNE BR_REVISAR_LARGOS
 
@@ -1659,7 +1598,7 @@ BUSCAR_REEMPLAZAR PROC NEAR
 
 BR_REVISAR_LARGOS:
 
-    ; Por ahora ambos textos deben tener el mismo largo
+    ; Las cadenas deben tener el mismo largo
     MOV AL, LARGO_BUSCAR
     CMP AL, LARGO_REEMPLAZAR
     JE BR_INICIAR
@@ -1669,17 +1608,12 @@ BR_REVISAR_LARGOS:
 
 BR_INICIAR:
 
-    ; SI = posicion actual dentro del documento
     XOR SI, SI
 
 
 BR_SIGUIENTE_POSICION:
 
-    ; -------------------------------------------------
-    ; Verificar que todavia haya suficiente espacio
-    ; para comparar toda la palabra
-    ; -------------------------------------------------
-
+    ; Verificar que todavia quepa la palabra
     MOV AX, SI
 
     XOR BX, BX
@@ -1698,10 +1632,8 @@ BR_COMPARAR:
     ; Guardar posicion inicial
     MOV BP, SI
 
-    ; DI apunta al texto que buscamos
     LEA DI, BUSCAR_TEXTO
 
-    ; CX = cantidad de caracteres a comparar
     XOR CX, CX
     MOV CL, LARGO_BUSCAR
 
@@ -1718,16 +1650,12 @@ BR_COMPARAR_LOOP:
 
     LOOP BR_COMPARAR_LOOP
 
-    ; Si llegamos aqui, encontramos coincidencia
     JMP BR_REEMPLAZAR
 
 
 BR_NO_COINCIDE:
 
-    ; Volver a la posicion inicial
     MOV SI, BP
-
-    ; Probar desde el siguiente caracter
     INC SI
 
     JMP BR_SIGUIENTE_POSICION
@@ -1738,7 +1666,6 @@ BR_REEMPLAZAR:
     ; Volver al inicio de la coincidencia
     MOV SI, BP
 
-    ; DI apunta al texto de reemplazo
     LEA DI, REEMPLAZAR_TEXTO
 
     XOR CX, CX
@@ -1755,8 +1682,6 @@ BR_REEMPLAZAR_LOOP:
 
     LOOP BR_REEMPLAZAR_LOOP
 
-    ; SI ya queda despues de la palabra reemplazada
-    ; Continuar buscando desde ahi
     JMP BR_SIGUIENTE_POSICION
 
 
@@ -1774,13 +1699,42 @@ BR_FIN:
 
 BUSCAR_REEMPLAZAR ENDP
 
+
+; =================================================
+; ALT + S - GUARDAR Y SALIR
+; =================================================
+
+GUARDAR_SALIR:
+
+    ; -------------------------------------------------
+    ; PENDIENTE DE INTEGRACION CON PERSONA A
+    ;
+    ; Informacion disponible:
+    ;
+    ; BUFFER_TEXTO
+    ; BUFFER_COLOR
+    ;
+    ; NUM_IMAGENES
+    ; IMAGEN_TIPO
+    ; IMAGEN_X
+    ; IMAGEN_Y
+    ;
+    ; Persona A conectara aqui el procedimiento
+    ; encargado de guardar el archivo.
+    ;
+    ; Por ahora Alt+S termina el programa.
+    ; -------------------------------------------------
+
+    JMP FIN_PROGRAMA
+
+
 ; =================================================
 ; FIN DEL PROGRAMA
 ; =================================================
 
 FIN_PROGRAMA:
 
-    ; Regresar a modo texto normal
+    ; Regresar a modo texto
     MOV AX, 0003H
     INT 10H
 
