@@ -13,6 +13,40 @@ TITLE "PROYECTO 1 - EDITOR DE TEXTO"
 CURSORX     DB 0
 CURSORY     DB 2
 
+; -------------------------------------------------
+; BUFFER DEL DOCUMENTO
+; -------------------------------------------------
+
+; Area editable:
+; 80 columnas x 23 renglones = 1840 caracteres
+;
+; Cada posicion del buffer representa una posicion
+; visible de la pantalla.
+;
+; Fila 2  -> posiciones 0 - 79
+; Fila 3  -> posiciones 80 - 159
+; ...
+; Fila 24 -> posiciones 1760 - 1839
+
+BUFFER_TEXTO DB 1840 DUP(' ')
+
+; -------------------------------------------------
+; COLORES DEL TEXTO
+; -------------------------------------------------
+
+; Guarda el color de cada caracter del documento
+BUFFER_COLOR DB 1840 DUP(07H)
+
+; Color que se utilizara para los nuevos caracteres
+; 07H = blanco
+COLOR_ACTUAL DB 07H
+
+; Controla cual de los 3 colores esta seleccionado
+; 0 = blanco
+; 1 = verde
+; 2 = celeste
+NUM_COLOR    DB 0
+
 ; Mensaje temporal para identificar la pantalla
 TITULOEDIT  DB 'EDITOR DE TEXTO$'
 
@@ -90,8 +124,22 @@ REVISAR_IZQUIERDA:
 REVISAR_DERECHA:
 
     CMP AH, 4DH
-    JNE REVISAR_ESCAPE
+    JNE REVISAR_ALT_M
     JMP FLECHA_DERECHA
+
+
+REVISAR_ALT_M:
+
+    ; Alt + M
+    ; Scan code de M = 32H
+    CMP AH, 32H
+    JNE REVISAR_ESCAPE
+
+    ; Con Alt presionado, AL debe ser 00H
+    CMP AL, 00H
+    JNE REVISAR_ESCAPE
+
+    JMP CAMBIAR_COLOR
 
 
 REVISAR_ESCAPE:
@@ -188,10 +236,26 @@ CARACTER_INVALIDO:
 
 ESCRIBIR:
 
+    ; Guardar temporalmente el caracter
+    MOV DL, AL
+
+    ; Calcular donde corresponde dentro del buffer
+    CALL CALCULAR_POSICION
+
+    ; Guardar caracter en memoria
+    MOV BUFFER_TEXTO[SI], DL
+
+    ; Guardar tambien el color del caracter
+    MOV AL, COLOR_ACTUAL
+    MOV BUFFER_COLOR[SI], AL
+
+    ; Recuperar caracter para mostrarlo
+    MOV AL, DL
+
     ; Mostrar caracter en pantalla
     MOV AH, 09H
     MOV BH, 00H
-    MOV BL, 07H
+    MOV BL, COLOR_ACTUAL
     MOV CX, 1
     INT 10H
 
@@ -321,6 +385,87 @@ DERECHA_LINEA_SIGUIENTE:
     MOV CURSORX, 0
     JMP CICLO_EDITOR
 
+; =================================================
+; CALCULAR POSICION EN EL BUFFER
+; =================================================
+;
+; Entrada:
+;   CURSORX = columna actual
+;   CURSORY = renglon actual
+;
+; Salida:
+;   SI = indice dentro de BUFFER_TEXTO
+;
+; Formula:
+;   (CURSORY - 2) * 80 + CURSORX
+; =================================================
+
+CALCULAR_POSICION PROC NEAR
+
+    PUSH AX
+    PUSH BX
+    PUSH DX
+
+    ; Obtener numero de renglon dentro del editor
+    MOV AL, CURSORY
+    SUB AL, 2
+
+    ; Convertir a 16 bits
+    XOR AH, AH
+
+    ; Multiplicar renglon por 80
+    MOV BX, 80
+    MUL BX
+
+    ; AX ahora contiene:
+    ; (CURSORY - 2) * 80
+
+    ; Agregar columna actual
+    XOR BX, BX
+    MOV BL, CURSORX
+    ADD AX, BX
+
+    ; Guardar indice en SI
+    MOV SI, AX
+
+    POP DX
+    POP BX
+    POP AX
+
+    RET
+
+CALCULAR_POSICION ENDP
+
+; =================================================
+; ALT + M - CAMBIAR COLOR DE LETRA
+; =================================================
+
+CAMBIAR_COLOR:
+
+    CMP NUM_COLOR, 0
+    JE COLOR_VERDE
+
+    CMP NUM_COLOR, 1
+    JE COLOR_CELESTE
+
+    ; Si estaba en color 2, regresar a blanco
+    MOV NUM_COLOR, 0
+    MOV COLOR_ACTUAL, 07H
+    JMP CICLO_EDITOR
+
+
+COLOR_VERDE:
+
+    MOV NUM_COLOR, 1
+    MOV COLOR_ACTUAL, 02H
+    JMP CICLO_EDITOR
+
+
+COLOR_CELESTE:
+
+    MOV NUM_COLOR, 2
+    MOV COLOR_ACTUAL, 03H
+    JMP CICLO_EDITOR
 
 ; =================================================
 ; FIN DEL PROGRAMA
