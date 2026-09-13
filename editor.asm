@@ -47,6 +47,20 @@ COLOR_ACTUAL DB 07H
 ; 2 = celeste
 NUM_COLOR    DB 0
 
+; -------------------------------------------------
+; COLOR DE FONDO
+; -------------------------------------------------
+
+; Controla cual de los 3 fondos esta seleccionado
+; 0 = negro
+; 1 = azul
+; 2 = rojo
+NUM_FONDO    DB 0
+
+; Valor del fondo actual
+; Los bits altos del atributo representan el fondo
+FONDO_ACTUAL DB 00H
+
 ; Mensaje temporal para identificar la pantalla
 TITULOEDIT  DB 'EDITOR DE TEXTO$'
 
@@ -131,15 +145,26 @@ REVISAR_DERECHA:
 REVISAR_ALT_M:
 
     ; Alt + M
-    ; Scan code de M = 32H
     CMP AH, 32H
+    JNE REVISAR_ALT_N
+
+    CMP AL, 00H
+    JNE REVISAR_ALT_N
+
+    JMP CAMBIAR_COLOR
+
+
+REVISAR_ALT_N:
+
+    ; Alt + N
+    ; Scan code de N = 31H
+    CMP AH, 31H
     JNE REVISAR_ESCAPE
 
-    ; Con Alt presionado, AL debe ser 00H
     CMP AL, 00H
     JNE REVISAR_ESCAPE
 
-    JMP CAMBIAR_COLOR
+    JMP CAMBIAR_FONDO
 
 
 REVISAR_ESCAPE:
@@ -245,17 +270,23 @@ ESCRIBIR:
     ; Guardar caracter en memoria
     MOV BUFFER_TEXTO[SI], DL
 
-    ; Guardar tambien el color del caracter
-    MOV AL, COLOR_ACTUAL
-    MOV BUFFER_COLOR[SI], AL
+    ; -------------------------------------------------
+    ; Crear atributo del caracter
+    ; fondo + color de letra
+    ; -------------------------------------------------
 
-    ; Recuperar caracter para mostrarlo
+    MOV BL, FONDO_ACTUAL
+    OR BL, COLOR_ACTUAL
+
+    ; Guardar atributo completo de este caracter
+    MOV BUFFER_COLOR[SI], BL
+
+    ; Recuperar caracter
     MOV AL, DL
 
-    ; Mostrar caracter en pantalla
+    ; Mostrar caracter utilizando su atributo
     MOV AH, 09H
     MOV BH, 00H
-    MOV BL, COLOR_ACTUAL
     MOV CX, 1
     INT 10H
 
@@ -465,6 +496,37 @@ COLOR_CELESTE:
 
     MOV NUM_COLOR, 2
     MOV COLOR_ACTUAL, 03H
+    JMP CICLO_EDITOR
+
+; =================================================
+; ALT + N - CAMBIAR COLOR DE FONDO
+; =================================================
+
+CAMBIAR_FONDO:
+
+    CMP NUM_FONDO, 0
+    JE FONDO_AZUL
+
+    CMP NUM_FONDO, 1
+    JE FONDO_ROJO
+
+    ; Si estaba en fondo rojo, regresar a negro
+    MOV NUM_FONDO, 0
+    MOV FONDO_ACTUAL, 00H
+    JMP CICLO_EDITOR
+
+
+FONDO_AZUL:
+
+    MOV NUM_FONDO, 1
+    MOV FONDO_ACTUAL, 10H
+    JMP CICLO_EDITOR
+
+
+FONDO_ROJO:
+
+    MOV NUM_FONDO, 2
+    MOV FONDO_ACTUAL, 40H
     JMP CICLO_EDITOR
 
 ; =================================================
