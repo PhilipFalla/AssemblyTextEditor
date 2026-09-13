@@ -62,6 +62,22 @@ NUM_FONDO    DB 0
 FONDO_ACTUAL DB 00H
 
 ; -------------------------------------------------
+; IMAGENES DEL DOCUMENTO
+; -------------------------------------------------
+
+; Maximo de imagenes que se pueden insertar
+MAX_IMAGENES EQU 20
+
+; Cantidad de imagenes actualmente insertadas
+NUM_IMAGENES DB 0
+
+; Informacion de cada imagen
+; TIPO: 1 = corazon, 2 = flor
+IMAGEN_TIPO DB MAX_IMAGENES DUP(0)
+IMAGEN_X    DB MAX_IMAGENES DUP(0)
+IMAGEN_Y    DB MAX_IMAGENES DUP(0)
+
+; -------------------------------------------------
 ; PANTALLA DE AYUDA
 ; -------------------------------------------------
 
@@ -216,25 +232,62 @@ REVISAR_ALT_D:
 
     ; Alt + D
     CMP AH, 20H
+    JNE REVISAR_ALT_I
+
+    CMP AL, 00H
+    JNE REVISAR_ALT_I
+
+    JMP ULTIMO_RENGLON
+
+
+REVISAR_ALT_I:
+
+    ; Alt + I
+    CMP AH, 17H
+    JNE REVISAR_ALT_J
+
+    CMP AL, 00H
+    JNE REVISAR_ALT_J
+
+    JMP INSERTAR_CORAZON
+
+
+REVISAR_ALT_J:
+
+    ; Alt + J
+    ; Scan code de J = 24H
+    CMP AH, 24H
     JNE REVISAR_ALT_H
 
     CMP AL, 00H
     JNE REVISAR_ALT_H
 
-    JMP ULTIMO_RENGLON
+    JMP INSERTAR_FLOR
 
 
 REVISAR_ALT_H:
 
     ; Alt + H
-    ; Scan code de H = 23H
     CMP AH, 23H
+    JNE REVISAR_ALT_Z
+
+    CMP AL, 00H
+    JNE REVISAR_ALT_Z
+
+    JMP MOSTRAR_AYUDA
+
+
+REVISAR_ALT_Z:
+
+    ; Alt + Z
+    ; Scan code de Z = 2CH
+    CMP AH, 2CH
     JNE REVISAR_ESCAPE
 
     CMP AL, 00H
     JNE REVISAR_ESCAPE
 
-    JMP MOSTRAR_AYUDA
+    JMP REGRESAR_MENU
 
 
 REVISAR_ESCAPE:
@@ -787,6 +840,21 @@ REDIBUJAR_SIGUIENTE:
 
 REDIBUJAR_FIN:
 
+    ; Guardar posicion real del cursor
+    MOV AL, CURSORX
+    MOV AH, CURSORY
+
+    PUSH AX
+
+    ; Redibujar todas las imagenes encima del texto
+    CALL REDIBUJAR_IMAGENES
+
+    ; Recuperar posicion real del cursor
+    POP AX
+
+    MOV CURSORX, AL
+    MOV CURSORY, AH
+
     JMP CICLO_EDITOR
 
 ; =================================================
@@ -828,6 +896,500 @@ MOSTRAR_TEXTO PROC NEAR
     RET
 
 MOSTRAR_TEXTO ENDP    
+
+; =================================================
+; ALT + Z - REGRESAR AL MENU PRINCIPAL
+; =================================================
+
+REGRESAR_MENU:
+
+    ; Limpiar pantalla
+    MOV AX, 0003H
+    INT 10H
+
+    ; -------------------------------------------------
+    ; INTEGRACION CON PERSONA A
+    ;
+    ; Aqui se llamara al procedimiento del menu
+    ; principal cuando ambos modulos se unan.
+    ;
+    ; Por ahora termina el programa para poder
+    ; probar que ALT+Z fue detectado correctamente.
+    ; -------------------------------------------------
+
+    JMP FIN_PROGRAMA
+
+; =================================================
+; ALT + I - INSERTAR CORAZON
+; =================================================
+
+INSERTAR_CORAZON:
+
+    ; Verificar que el corazon quepa horizontalmente
+    CMP CURSORX, 73
+    JBE CORAZON_REVISAR_Y
+
+    JMP CICLO_EDITOR
+
+
+CORAZON_REVISAR_Y:
+
+    ; Verificar que el corazon quepa verticalmente
+    CMP CURSORY, 20
+    JBE CORAZON_REVISAR_CANTIDAD
+
+    JMP CICLO_EDITOR
+
+
+CORAZON_REVISAR_CANTIDAD:
+
+    ; Revisar si ya llegamos al maximo
+    CMP NUM_IMAGENES, MAX_IMAGENES
+    JB CORAZON_GUARDAR
+
+    JMP CICLO_EDITOR
+
+
+CORAZON_GUARDAR:
+
+    ; Obtener indice de la nueva imagen
+    XOR BX, BX
+    MOV BL, NUM_IMAGENES
+
+    ; Tipo 1 = corazon
+    MOV IMAGEN_TIPO[BX], 1
+
+    ; Guardar posicion actual del cursor
+    MOV AL, CURSORX
+    MOV IMAGEN_X[BX], AL
+
+    MOV AL, CURSORY
+    MOV IMAGEN_Y[BX], AL
+
+    ; Aumentar cantidad
+    INC NUM_IMAGENES
+
+    ; Dibujar el corazon
+    CALL DIBUJAR_CORAZON
+
+    JMP CICLO_EDITOR
+
+; =================================================
+; DIBUJAR CORAZON
+;
+; Utiliza CURSORX y CURSORY como esquina
+; superior izquierda de la imagen.
+; =================================================
+
+DIBUJAR_CORAZON PROC NEAR
+
+    PUSH AX
+    PUSH BX
+    PUSH CX
+    PUSH DX
+
+    ; Color rojo claro
+    MOV BL, 0CH
+
+    ; -----------------------------
+    ; FILA 1
+    ;  XX XX
+    ; -----------------------------
+
+    MOV DH, CURSORY
+    MOV DL, CURSORX
+    INC DL
+
+    MOV AH, 02H
+    MOV BH, 00H
+    INT 10H
+
+    MOV AL, 0DBH
+    MOV AH, 09H
+    MOV BH, 00H
+    MOV CX, 2
+    INT 10H
+
+    ; Segundo bloque de la fila
+    ADD DL, 3
+
+    MOV AH, 02H
+    MOV BH, 00H
+    INT 10H
+
+    MOV AL, 0DBH
+    MOV AH, 09H
+    MOV BH, 00H
+    MOV CX, 2
+    INT 10H
+
+    ; -----------------------------
+    ; FILA 2 - XXXXXXX
+    ; -----------------------------
+
+    MOV DH, CURSORY
+    INC DH
+    MOV DL, CURSORX
+
+    MOV AH, 02H
+    MOV BH, 00H
+    INT 10H
+
+    MOV AL, 0DBH
+    MOV AH, 09H
+    MOV BH, 00H
+    MOV CX, 7
+    INT 10H
+
+    ; -----------------------------
+    ; FILA 3 - XXXXXXX
+    ; -----------------------------
+
+    MOV DH, CURSORY
+    ADD DH, 2
+    MOV DL, CURSORX
+
+    MOV AH, 02H
+    MOV BH, 00H
+    INT 10H
+
+    MOV AL, 0DBH
+    MOV AH, 09H
+    MOV BH, 00H
+    MOV CX, 7
+    INT 10H
+
+    ; -----------------------------
+    ; FILA 4 -  XXXXX
+    ; -----------------------------
+
+    MOV DH, CURSORY
+    ADD DH, 3
+    MOV DL, CURSORX
+    INC DL
+
+    MOV AH, 02H
+    MOV BH, 00H
+    INT 10H
+
+    MOV AL, 0DBH
+    MOV AH, 09H
+    MOV BH, 00H
+    MOV CX, 5
+    INT 10H
+
+    ; -----------------------------
+    ; FILA 5 -   XXX
+    ; -----------------------------
+
+    MOV DH, CURSORY
+    ADD DH, 4
+    MOV DL, CURSORX
+    ADD DL, 2
+
+    MOV AH, 02H
+    MOV BH, 00H
+    INT 10H
+
+    MOV AL, 0DBH
+    MOV AH, 09H
+    MOV BH, 00H
+    MOV CX, 3
+    INT 10H
+
+    POP DX
+    POP CX
+    POP BX
+    POP AX
+
+    RET
+
+DIBUJAR_CORAZON ENDP
+
+; =================================================
+; ALT + J - INSERTAR FLOR
+; =================================================
+
+INSERTAR_FLOR:
+
+    ; La flor mide 7 columnas
+    ; No permitir que salga por la derecha
+    CMP CURSORX, 73
+    JBE FLOR_REVISAR_Y
+
+    JMP CICLO_EDITOR
+
+
+FLOR_REVISAR_Y:
+
+    ; La flor mide 5 renglones
+    ; No permitir que salga por abajo
+    CMP CURSORY, 20
+    JBE FLOR_REVISAR_CANTIDAD
+
+    JMP CICLO_EDITOR
+
+
+FLOR_REVISAR_CANTIDAD:
+
+    ; Revisar si ya llegamos al maximo
+    CMP NUM_IMAGENES, MAX_IMAGENES
+    JB FLOR_GUARDAR
+
+    JMP CICLO_EDITOR
+
+
+FLOR_GUARDAR:
+
+    XOR BX, BX
+    MOV BL, NUM_IMAGENES
+
+    ; Tipo 2 = flor
+    MOV IMAGEN_TIPO[BX], 2
+
+    ; Guardar posicion
+    MOV AL, CURSORX
+    MOV IMAGEN_X[BX], AL
+
+    MOV AL, CURSORY
+    MOV IMAGEN_Y[BX], AL
+
+    INC NUM_IMAGENES
+
+    CALL DIBUJAR_FLOR
+
+    JMP CICLO_EDITOR
+
+; =================================================
+; DIBUJAR FLOR
+; =================================================
+
+DIBUJAR_FLOR PROC NEAR
+
+    PUSH AX
+    PUSH BX
+    PUSH CX
+    PUSH DX
+
+    ; -----------------------------
+    ; FILA 1 -   X X
+    ; -----------------------------
+
+    ; Rosado claro
+    MOV BL, 0DH
+
+    MOV DH, CURSORY
+    MOV DL, CURSORX
+    ADD DL, 2
+
+    MOV AH, 02H
+    MOV BH, 00H
+    INT 10H
+
+    MOV AL, 0DBH
+    MOV AH, 09H
+    MOV BH, 00H
+    MOV CX, 1
+    INT 10H
+
+    ADD DL, 2
+
+    MOV AH, 02H
+    MOV BH, 00H
+    INT 10H
+
+    MOV AL, 0DBH
+    MOV AH, 09H
+    MOV BH, 00H
+    MOV CX, 1
+    INT 10H
+
+
+    ; -----------------------------
+    ; FILA 2 -  XXXXX
+    ; -----------------------------
+
+    MOV DH, CURSORY
+    INC DH
+    MOV DL, CURSORX
+    INC DL
+
+    MOV AH, 02H
+    MOV BH, 00H
+    INT 10H
+
+    MOV AL, 0DBH
+    MOV AH, 09H
+    MOV BH, 00H
+    MOV CX, 5
+    INT 10H
+
+
+    ; -----------------------------
+    ; FILA 3 -   XXX
+    ; -----------------------------
+
+    MOV DH, CURSORY
+    ADD DH, 2
+    MOV DL, CURSORX
+    ADD DL, 2
+
+    MOV AH, 02H
+    MOV BH, 00H
+    INT 10H
+
+    MOV AL, 0DBH
+    MOV AH, 09H
+    MOV BH, 00H
+    MOV CX, 3
+    INT 10H
+
+
+    ; -----------------------------
+    ; FILA 4 - tallo
+    ;    X
+    ; -----------------------------
+
+    ; Verde claro
+    MOV BL, 0AH
+
+    MOV DH, CURSORY
+    ADD DH, 3
+    MOV DL, CURSORX
+    ADD DL, 3
+
+    MOV AH, 02H
+    MOV BH, 00H
+    INT 10H
+
+    MOV AL, 0DBH
+    MOV AH, 09H
+    MOV BH, 00H
+    MOV CX, 1
+    INT 10H
+
+
+    ; -----------------------------
+    ; FILA 5 - hojas
+    ;   XXX
+    ; -----------------------------
+
+    MOV DH, CURSORY
+    ADD DH, 4
+    MOV DL, CURSORX
+    ADD DL, 2
+
+    MOV AH, 02H
+    MOV BH, 00H
+    INT 10H
+
+    MOV AL, 0DBH
+    MOV AH, 09H
+    MOV BH, 00H
+    MOV CX, 3
+    INT 10H
+
+
+    POP DX
+    POP CX
+    POP BX
+    POP AX
+
+    RET
+
+DIBUJAR_FLOR ENDP
+
+; =================================================
+; REDIBUJAR TODAS LAS IMAGENES
+; =================================================
+
+REDIBUJAR_IMAGENES PROC NEAR
+
+    PUSH AX
+    PUSH BX
+    PUSH CX
+    PUSH DX
+    PUSH SI
+
+    ; Empezar con la primera imagen
+    XOR SI, SI
+
+    ; Cantidad total de imagenes
+    XOR CX, CX
+    MOV CL, NUM_IMAGENES
+
+    ; Si no hay imagenes, terminar
+    CMP CX, 0
+    JE REDIBUJAR_IMAGENES_FIN
+
+
+REDIBUJAR_IMAGEN_LOOP:
+
+    ; Revisar tipo de imagen
+CMP IMAGEN_TIPO[SI], 1
+JE REDIBUJAR_CORAZON_IMG
+
+CMP IMAGEN_TIPO[SI], 2
+JE REDIBUJAR_FLOR_IMG
+
+JMP REDIBUJAR_SIGUIENTE_IMAGEN
+
+
+REDIBUJAR_CORAZON_IMG:
+
+    PUSH CX
+    PUSH SI
+
+    MOV AL, IMAGEN_X[SI]
+    MOV CURSORX, AL
+
+    MOV AL, IMAGEN_Y[SI]
+    MOV CURSORY, AL
+
+    CALL DIBUJAR_CORAZON
+
+    POP SI
+    POP CX
+
+    JMP REDIBUJAR_SIGUIENTE_IMAGEN
+
+
+REDIBUJAR_FLOR_IMG:
+
+    PUSH CX
+    PUSH SI
+
+    MOV AL, IMAGEN_X[SI]
+    MOV CURSORX, AL
+
+    MOV AL, IMAGEN_Y[SI]
+    MOV CURSORY, AL
+
+    CALL DIBUJAR_FLOR
+
+    POP SI
+    POP CX
+
+    JMP REDIBUJAR_SIGUIENTE_IMAGEN
+
+
+REDIBUJAR_SIGUIENTE_IMAGEN:
+
+    INC SI
+    LOOP REDIBUJAR_IMAGEN_LOOP
+
+
+REDIBUJAR_IMAGENES_FIN:
+
+    POP SI
+    POP DX
+    POP CX
+    POP BX
+    POP AX
+
+    RET
+
+REDIBUJAR_IMAGENES ENDP
 
 ; =================================================
 ; FIN DEL PROGRAMA
