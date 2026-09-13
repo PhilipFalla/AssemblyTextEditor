@@ -157,14 +157,52 @@ REVISAR_ALT_M:
 REVISAR_ALT_N:
 
     ; Alt + N
-    ; Scan code de N = 31H
     CMP AH, 31H
+    JNE REVISAR_ALT_C
+
+    CMP AL, 00H
+    JNE REVISAR_ALT_C
+
+    JMP CAMBIAR_FONDO
+
+
+REVISAR_ALT_C:
+
+    ; Alt + C
+    ; Scan code de C = 2EH
+    CMP AH, 2EH
+    JNE REVISAR_ALT_U
+
+    CMP AL, 00H
+    JNE REVISAR_ALT_U
+
+    JMP CENTRAR_CURSOR
+
+
+REVISAR_ALT_U:
+
+    ; Alt + U
+    ; Scan code de U = 16H
+    CMP AH, 16H
+    JNE REVISAR_ALT_D
+
+    CMP AL, 00H
+    JNE REVISAR_ALT_D
+
+    JMP PRIMER_RENGLON
+
+
+REVISAR_ALT_D:
+
+    ; Alt + D
+    ; Scan code de D = 20H
+    CMP AH, 20H
     JNE REVISAR_ESCAPE
 
     CMP AL, 00H
     JNE REVISAR_ESCAPE
 
-    JMP CAMBIAR_FONDO
+    JMP ULTIMO_RENGLON
 
 
 REVISAR_ESCAPE:
@@ -527,6 +565,43 @@ FONDO_ROJO:
 
     MOV NUM_FONDO, 2
     MOV FONDO_ACTUAL, 40H
+    JMP CICLO_EDITOR
+
+; =================================================
+; ALT + C - CENTRAR CURSOR
+; =================================================
+
+CENTRAR_CURSOR:
+
+    ; Pantalla de 80 columnas: 0 - 79
+    ; Columna 40 = aproximadamente el centro
+    MOV CURSORX, 40
+
+    JMP CICLO_EDITOR
+
+
+; =================================================
+; ALT + U - PRIMER RENGLON
+; =================================================
+
+PRIMER_RENGLON:
+
+    ; Nuestro primer renglon editable es el 2
+    ; porque las filas 0 y 1 quedan para interfaz
+    MOV CURSORY, 2
+
+    JMP CICLO_EDITOR
+
+
+; =================================================
+; ALT + D - ULTIMO RENGLON
+; =================================================
+
+ULTIMO_RENGLON:
+
+    ; Ultimo renglon de la pantalla 80x25
+    MOV CURSORY, 24
+
     JMP CICLO_EDITOR
 
 ; =================================================
