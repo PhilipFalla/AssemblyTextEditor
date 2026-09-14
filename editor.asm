@@ -405,9 +405,17 @@ REVISAR_ESCAPE:
 
     ; ESC temporal para pruebas
     CMP AL, 1BH
-    JNE VALIDAR_NUMERO
+    JNE REVISAR_BACKSPACE
 
     JMP FIN_PROGRAMA
+
+
+REVISAR_BACKSPACE:
+
+    CMP AL, 08H
+    JNE VALIDAR_NUMERO
+
+    JMP BORRAR_CARACTER
 
 
 ; =================================================
@@ -479,9 +487,17 @@ VALIDAR_DOSPUNTOS_DOSBOX:
     ; En este DOSBox la tecla usada para :
     ; puede llegar como >
     CMP AL, '>'
-    JNE CARACTER_INVALIDO
+    JNE VALIDAR_ESPACIO
 
     MOV AL, ':'
+    JMP ESCRIBIR
+
+
+VALIDAR_ESPACIO:
+
+    CMP AL, ' '
+    JNE CARACTER_INVALIDO
+
     JMP ESCRIBIR
 
 
@@ -627,6 +643,72 @@ DERECHA_LINEA_SIGUIENTE:
 
     INC CURSORY
     MOV CURSORX, 0
+    JMP CICLO_EDITOR
+
+
+; =================================================
+; BACKSPACE - BORRAR CARACTER ANTERIOR
+;
+; Mueve el cursor una posicion hacia atras (igual que
+; FLECHA_IZQUIERDA) y deja esa celda en blanco.
+; =================================================
+
+BORRAR_CARACTER:
+
+    ; Si el cursor esta en la primera posicion del
+    ; documento, no hay nada que borrar
+    CMP CURSORX, 0
+    JNE BC_MOVER_IZQUIERDA
+
+    CMP CURSORY, 2
+    JNE BC_MOVER_IZQUIERDA
+
+    JMP CICLO_EDITOR
+
+
+BC_MOVER_IZQUIERDA:
+
+    CMP CURSORX, 0
+    JNE BC_DECREMENTAR_X
+
+    ; Pasar al final del renglon anterior
+    DEC CURSORY
+    MOV CURSORX, 79
+    JMP BC_BORRAR
+
+
+BC_DECREMENTAR_X:
+
+    DEC CURSORX
+
+
+BC_BORRAR:
+
+    ; Borrar el caracter en el buffer
+    CALL CALCULAR_POSICION
+
+    MOV BUFFER_TEXTO[SI], ' '
+    MOV BUFFER_COLOR[SI], 07H
+
+    ; Reposicionar el cursor (BORRAR_CARACTER cambia la
+    ; posicion fuera del ciclo normal de CICLO_EDITOR)
+    MOV AH, 02H
+    MOV BH, 00H
+    MOV DH, CURSORY
+    MOV DL, CURSORX
+    INT 10H
+
+    ; Redibujar la celda como espacio en blanco
+    MOV AL, ' '
+    MOV BL, 07H
+    MOV AH, 09H
+    MOV BH, 00H
+    MOV CX, 1
+    INT 10H
+
+    ; Mantener las imagenes encima del texto
+    CALL REDIBUJAR_IMAGENES
+
     JMP CICLO_EDITOR
 
 
