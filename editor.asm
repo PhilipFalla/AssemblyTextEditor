@@ -167,6 +167,8 @@ TXT_CREAR_TITULO DB 'CREAR ARCHIVO NUEVO$'
 TXT_CREAR_NOMBRE DB 'Escribe el nombre (letras/numeros, maximo 8):$'
 TXT_ERROR_CREAR  DB 'No se pudo crear el archivo. Presiona una tecla para reintentar...$'
 
+TXT_ERROR_GUARDAR DB 'No se pudo guardar el archivo. Presiona una tecla para salir...$'
+
 
 .CODE
 
@@ -2479,24 +2481,71 @@ BUSCAR_REEMPLAZAR ENDP
 
 GUARDAR_SALIR:
 
-    ; -------------------------------------------------
-    ; PENDIENTE DE INTEGRACION CON PERSONA A
-    ;
-    ; Informacion disponible:
-    ;
-    ; BUFFER_TEXTO
-    ; BUFFER_COLOR
-    ;
-    ; NUM_IMAGENES
-    ; IMAGEN_TIPO
-    ; IMAGEN_X
-    ; IMAGEN_Y
-    ;
-    ; Persona A conectara aqui el procedimiento
-    ; encargado de guardar el archivo.
-    ;
-    ; Por ahora Alt+S termina el programa.
-    ; -------------------------------------------------
+    ; Crear/truncar el archivo actual para escritura
+    LEA DX, ARCHIVO_ACTUAL
+    XOR CX, CX
+    MOV AH, 3CH
+    INT 21H
+
+    JC GUARDAR_ERROR
+
+    MOV BX, AX
+
+    ; Texto del documento
+    LEA DX, BUFFER_TEXTO
+    MOV CX, 1840
+    MOV AH, 40H
+    INT 21H
+
+    ; Color de cada caracter (letra + fondo)
+    LEA DX, BUFFER_COLOR
+    MOV CX, 1840
+    MOV AH, 40H
+    INT 21H
+
+    ; Cantidad de imagenes
+    LEA DX, NUM_IMAGENES
+    MOV CX, 1
+    MOV AH, 40H
+    INT 21H
+
+    ; Tipo de cada imagen
+    LEA DX, IMAGEN_TIPO
+    MOV CX, MAX_IMAGENES
+    MOV AH, 40H
+    INT 21H
+
+    ; Posicion X de cada imagen
+    LEA DX, IMAGEN_X
+    MOV CX, MAX_IMAGENES
+    MOV AH, 40H
+    INT 21H
+
+    ; Posicion Y de cada imagen
+    LEA DX, IMAGEN_Y
+    MOV CX, MAX_IMAGENES
+    MOV AH, 40H
+    INT 21H
+
+    ; Cerrar archivo
+    MOV AH, 3EH
+    INT 21H
+
+    JMP FIN_PROGRAMA
+
+
+GUARDAR_ERROR:
+
+    MOV AX, 0003H
+    INT 10H
+
+    MOV BH, 12
+    MOV BL, 15
+    LEA DX, TXT_ERROR_GUARDAR
+    CALL MOSTRAR_TEXTO
+
+    MOV AH, 00H
+    INT 16H
 
     JMP FIN_PROGRAMA
 
