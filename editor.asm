@@ -169,6 +169,10 @@ TXT_ERROR_CREAR  DB 'No se pudo crear el archivo. Presiona una tecla para reinte
 
 TXT_ERROR_GUARDAR DB 'No se pudo guardar el archivo. Presiona una tecla para salir...$'
 
+TXT_ABRIR_TITULO DB 'ABRIR ARCHIVO POR NOMBRE$'
+TXT_ABRIR_NOMBRE DB 'Escribe el nombre (letras/numeros, maximo 8):$'
+TXT_ERROR_ABRIR  DB 'Archivo no encontrado. Presiona una tecla para reintentar...$'
+
 
 .CODE
 
@@ -1674,14 +1678,138 @@ REINICIAR_DOCUMENTO ENDP
 
 ; =================================================
 ; ABRIR ARCHIVO POR NOMBRE
-;
-; PENDIENTE: se implementa en un commit posterior.
 ; =================================================
+
+ABRIR_ARCHIVO_PEDIR_NOMBRE:
+
+    ; Limpiar pantalla
+    MOV AX, 0003H
+    INT 10H
+
+    MOV BH, 6
+    MOV BL, 27
+    LEA DX, TXT_ABRIR_TITULO
+    CALL MOSTRAR_TEXTO
+
+    MOV BH, 10
+    MOV BL, 15
+    LEA DX, TXT_ABRIR_NOMBRE
+    CALL MOSTRAR_TEXTO
+
+    ; Cursor para escribir el nombre
+    MOV AH, 02H
+    MOV BH, 00H
+    MOV DH, 12
+    MOV DL, 15
+    INT 10H
+
+    LEA DI, NOMBRE_TEMP
+    CALL LEER_NOMBRE_ARCHIVO
+
+    ; El destino de este chequeo queda lejos (despues de
+    ; todas las lecturas), asi que se invierte la
+    ; condicion y se usa JMP en vez de JC directo.
+    JNC ABRIR_ARCHIVO_REVISAR_VACIO
+    JMP ABRIR_ARCHIVO_CANCELAR
+
+
+ABRIR_ARCHIVO_REVISAR_VACIO:
+
+    ; No permitir nombre vacio
+    CMP CX, 0
+    JE ABRIR_ARCHIVO_PEDIR_NOMBRE
+
+    CALL CONSTRUIR_NOMBRE_ARCHIVO
+
+    ; Abrir el archivo existente (AL=00H = solo lectura)
+    LEA DX, ARCHIVO_ACTUAL
+    MOV AL, 00H
+    MOV AH, 3DH
+    INT 21H
+
+    JNC ABRIR_ARCHIVO_LEER
+    JMP ABRIR_ARCHIVO_ERROR
+
+
+ABRIR_ARCHIVO_LEER:
+
+    MOV BX, AX
+
+    ; Texto del documento
+    LEA DX, BUFFER_TEXTO
+    MOV CX, 1840
+    MOV AH, 3FH
+    INT 21H
+
+    ; Color de cada caracter (letra + fondo)
+    LEA DX, BUFFER_COLOR
+    MOV CX, 1840
+    MOV AH, 3FH
+    INT 21H
+
+    ; Cantidad de imagenes
+    LEA DX, NUM_IMAGENES
+    MOV CX, 1
+    MOV AH, 3FH
+    INT 21H
+
+    ; Tipo de cada imagen
+    LEA DX, IMAGEN_TIPO
+    MOV CX, MAX_IMAGENES
+    MOV AH, 3FH
+    INT 21H
+
+    ; Posicion X de cada imagen
+    LEA DX, IMAGEN_X
+    MOV CX, MAX_IMAGENES
+    MOV AH, 3FH
+    INT 21H
+
+    ; Posicion Y de cada imagen
+    LEA DX, IMAGEN_Y
+    MOV CX, MAX_IMAGENES
+    MOV AH, 3FH
+    INT 21H
+
+    ; Cerrar archivo
+    MOV AH, 3EH
+    INT 21H
+
+    ; El color/fondo "actual" (para texto nuevo) no viene
+    ; guardado en el archivo, se reinicia por defecto
+    MOV COLOR_ACTUAL, 07H
+    MOV NUM_COLOR, 0
+
+    MOV FONDO_ACTUAL, 00H
+    MOV NUM_FONDO, 0
+
+    MOV CURSORX, 0
+    MOV CURSORY, 2
+
+    JMP REDIBUJAR_EDITOR
+
+
+ABRIR_ARCHIVO_ERROR:
+
+    MOV BH, 14
+    MOV BL, 15
+    LEA DX, TXT_ERROR_ABRIR
+    CALL MOSTRAR_TEXTO
+
+    MOV AH, 00H
+    INT 16H
+
+    JMP ABRIR_ARCHIVO_PEDIR_NOMBRE
+
+
+ABRIR_ARCHIVO_CANCELAR:
+
+    JMP MOSTRAR_MENU_PRINCIPAL
+
 
 ABRIR_ARCHIVO:
 
-    CALL MOSTRAR_PROXIMAMENTE
-    JMP MOSTRAR_MENU_PRINCIPAL
+    JMP ABRIR_ARCHIVO_PEDIR_NOMBRE
 
 
 ; =================================================
