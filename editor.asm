@@ -120,6 +120,37 @@ LARGO_REEMPLAZAR DB 0
 TITULOEDIT DB 'EDITOR DE TEXTO$'
 
 
+; =================================================
+; PANTALLA DE MENU PRINCIPAL
+; =================================================
+
+; 0 = Crear archivo nuevo
+; 1 = Abrir archivo por nombre
+; 2 = Abrir archivo por lista
+; 3 = Salir
+MENU_SELECCION DB 0
+
+TITULOMENU DB 'EDITOR DE TEXTO x8086$'
+
+; Icono decorativo (pantalla ASCII)
+ICONO1 DB 201,205,205,205,205,205,187,'$'
+ICONO2 DB 186,' ','E','D','T',' ',186,'$'
+ICONO3 DB 200,205,205,205,205,205,188,'$'
+
+; Marco de la pantalla de menu
+BORDE_SUP DB 201,58 DUP(205),187,'$'
+BORDE_INF DB 200,58 DUP(205),188,'$'
+
+OPCION1 DB 'CREAR ARCHIVO NUEVO$'
+OPCION2 DB 'ABRIR ARCHIVO POR NOMBRE$'
+OPCION3 DB 'ABRIR ARCHIVO POR LISTA$'
+OPCION4 DB 'SALIR$'
+
+PIE_MENU DB 'Flechas: mover   ENTER: seleccionar   ALT+X: salir$'
+
+TXT_PROXIMAMENTE DB 'Funcion disponible proximamente. Presiona una tecla...$'
+
+
 .CODE
 
 MAIN PROC FAR
@@ -132,20 +163,10 @@ MAIN PROC FAR
     MOV AX, 0003H
     INT 10H
 
-    ; Mostrar titulo
-    MOV AH, 02H
-    MOV BH, 00H
-    MOV DH, 00H
-    MOV DL, 32
-    INT 10H
-
-    LEA DX, TITULOEDIT
-    MOV AH, 09H
-    INT 21H
-
-    ; Posicion inicial del cursor
-    MOV CURSORX, 0
-    MOV CURSORY, 2
+    ; El programa inicia en el menu principal.
+    ; El titulo y la posicion inicial del cursor
+    ; los define REDIBUJAR_EDITOR al entrar al editor.
+    JMP MOSTRAR_MENU_PRINCIPAL
 
 
 ; =================================================
@@ -908,17 +929,430 @@ MOSTRAR_TEXTO ENDP
 
 REGRESAR_MENU:
 
-    ; -------------------------------------------------
-    ; INTEGRACION CON PERSONA A
-    ;
-    ; Aqui se conectara el procedimiento que regresa
-    ; al menu principal.
-    ;
-    ; Por ahora termina el programa para comprobar
-    ; que Alt+Z fue detectado correctamente.
-    ; -------------------------------------------------
+    JMP MOSTRAR_MENU_PRINCIPAL
+
+
+; =================================================
+; MENU PRINCIPAL
+; =================================================
+
+MOSTRAR_MENU_PRINCIPAL:
+
+    ; Limpiar pantalla
+    MOV AX, 0003H
+    INT 10H
+
+    CALL DIBUJAR_MARCO
+
+    ; Titulo
+    MOV BH, 4
+    MOV BL, 29
+    LEA DX, TITULOMENU
+    CALL MOSTRAR_TEXTO
+
+    ; Icono decorativo
+    MOV BH, 6
+    MOV BL, 36
+    LEA DX, ICONO1
+    CALL MOSTRAR_TEXTO
+
+    MOV BH, 7
+    MOV BL, 36
+    LEA DX, ICONO2
+    CALL MOSTRAR_TEXTO
+
+    MOV BH, 8
+    MOV BL, 36
+    LEA DX, ICONO3
+    CALL MOSTRAR_TEXTO
+
+    ; Pie de pantalla
+    MOV BH, 20
+    MOV BL, 14
+    LEA DX, PIE_MENU
+    CALL MOSTRAR_TEXTO
+
+    MOV MENU_SELECCION, 0
+
+
+MENU_REDIBUJAR:
+
+    CALL DIBUJAR_OPCIONES_MENU
+
+
+MENU_LEER_TECLA:
+
+    MOV AH, 00H
+    INT 16H
+
+    ; Flecha arriba
+    CMP AH, 48H
+    JE MENU_ARRIBA
+
+    ; Flecha abajo
+    CMP AH, 50H
+    JE MENU_ABAJO
+
+    ; Enter
+    CMP AL, 0DH
+    JE MENU_SELECCIONAR
+
+    ; Alt + X
+    CMP AH, 2DH
+    JNE MENU_LEER_TECLA
+
+    CMP AL, 00H
+    JNE MENU_LEER_TECLA
 
     JMP FIN_PROGRAMA
+
+
+MENU_ARRIBA:
+
+    CMP MENU_SELECCION, 0
+    JE MENU_REDIBUJAR
+
+    DEC MENU_SELECCION
+    JMP MENU_REDIBUJAR
+
+
+MENU_ABAJO:
+
+    CMP MENU_SELECCION, 3
+    JE MENU_REDIBUJAR
+
+    INC MENU_SELECCION
+    JMP MENU_REDIBUJAR
+
+
+MENU_SELECCIONAR:
+
+    CMP MENU_SELECCION, 0
+    JE CREAR_ARCHIVO
+
+    CMP MENU_SELECCION, 1
+    JE ABRIR_ARCHIVO
+
+    CMP MENU_SELECCION, 2
+    JE ABRIR_ARCHIVO_LISTA
+
+    JMP FIN_PROGRAMA
+
+
+; =================================================
+; DIBUJAR MARCO DE LA PANTALLA DE MENU
+; =================================================
+
+DIBUJAR_MARCO PROC NEAR
+
+    PUSH AX
+    PUSH BX
+    PUSH CX
+    PUSH DX
+
+    ; Borde superior
+    MOV BH, 2
+    MOV BL, 10
+    LEA DX, BORDE_SUP
+    CALL MOSTRAR_TEXTO
+
+    ; Borde inferior
+    MOV BH, 22
+    MOV BL, 10
+    LEA DX, BORDE_INF
+    CALL MOSTRAR_TEXTO
+
+    ; Bordes laterales
+    MOV DH, 3
+
+
+MARCO_LATERAL:
+
+    CMP DH, 22
+    JAE MARCO_LATERAL_FIN
+
+    MOV AH, 02H
+    MOV BH, 00H
+    MOV DL, 10
+    INT 10H
+
+    MOV AL, 186
+    MOV AH, 09H
+    MOV BH, 00H
+    MOV CX, 1
+    INT 10H
+
+    MOV AH, 02H
+    MOV BH, 00H
+    MOV DL, 69
+    INT 10H
+
+    MOV AL, 186
+    MOV AH, 09H
+    MOV BH, 00H
+    MOV CX, 1
+    INT 10H
+
+    INC DH
+    JMP MARCO_LATERAL
+
+
+MARCO_LATERAL_FIN:
+
+    POP DX
+    POP CX
+    POP BX
+    POP AX
+
+    RET
+
+DIBUJAR_MARCO ENDP
+
+
+; =================================================
+; DIBUJAR LAS 4 OPCIONES DEL MENU
+;
+; La opcion resaltada usa el atributo 70H
+; (negro sobre blanco). Las demas usan 0BH.
+; =================================================
+
+DIBUJAR_OPCIONES_MENU PROC NEAR
+
+    PUSH AX
+    PUSH BX
+    PUSH CX
+    PUSH DX
+
+    ; Opcion 0 - Crear archivo nuevo
+    MOV CL, 0BH
+    CMP MENU_SELECCION, 0
+    JNE DOM_OP0_COLOR
+    MOV CL, 70H
+
+DOM_OP0_COLOR:
+
+    MOV BH, 12
+    MOV BL, 24
+    LEA DX, OPCION1
+    CALL MOSTRAR_OPCION
+
+    ; Opcion 1 - Abrir archivo por nombre
+    MOV CL, 0BH
+    CMP MENU_SELECCION, 1
+    JNE DOM_OP1_COLOR
+    MOV CL, 70H
+
+DOM_OP1_COLOR:
+
+    MOV BH, 14
+    MOV BL, 24
+    LEA DX, OPCION2
+    CALL MOSTRAR_OPCION
+
+    ; Opcion 2 - Abrir archivo por lista
+    MOV CL, 0BH
+    CMP MENU_SELECCION, 2
+    JNE DOM_OP2_COLOR
+    MOV CL, 70H
+
+DOM_OP2_COLOR:
+
+    MOV BH, 16
+    MOV BL, 24
+    LEA DX, OPCION3
+    CALL MOSTRAR_OPCION
+
+    ; Opcion 3 - Salir
+    MOV CL, 0BH
+    CMP MENU_SELECCION, 3
+    JNE DOM_OP3_COLOR
+    MOV CL, 70H
+
+DOM_OP3_COLOR:
+
+    MOV BH, 18
+    MOV BL, 24
+    LEA DX, OPCION4
+    CALL MOSTRAR_OPCION
+
+    POP DX
+    POP CX
+    POP BX
+    POP AX
+
+    RET
+
+DIBUJAR_OPCIONES_MENU ENDP
+
+
+; =================================================
+; MOSTRAR UNA OPCION DE MENU CON COLOR
+;
+; Entrada:
+; BH = fila
+; BL = columna
+; DX = direccion del texto (terminado en '$')
+; CL = atributo de color
+; =================================================
+
+MOSTRAR_OPCION PROC NEAR
+
+    PUSH AX
+    PUSH BX
+    PUSH CX
+    PUSH DX
+    PUSH SI
+    PUSH BP
+    PUSH ES
+
+    MOV SI, DX
+
+    ; CALL LARGO_CADENA destruye CX (devuelve la longitud
+    ; ahi), asi que el atributo se guarda antes en AH.
+    MOV AH, CL
+
+    PUSH BX
+
+    ; Calcular longitud de la cadena
+    MOV DX, SI
+    CALL LARGO_CADENA
+
+    POP BX
+
+    MOV DH, BH
+    MOV DL, BL
+    MOV BH, 00H
+    MOV BL, AH
+
+    PUSH DS
+    POP ES
+    MOV BP, SI
+
+    ; AH=13H, AL=01H: escribir cadena de caracteres,
+    ; usar atributo en BL, mover el cursor
+    MOV AX, 1301H
+    INT 10H
+
+    POP ES
+    POP BP
+    POP SI
+    POP DX
+    POP CX
+    POP BX
+    POP AX
+
+    RET
+
+MOSTRAR_OPCION ENDP
+
+
+; =================================================
+; CALCULAR LONGITUD DE UNA CADENA TERMINADA EN '$'
+;
+; Entrada:
+; DX = direccion de la cadena
+;
+; Salida:
+; CX = longitud (sin contar el '$')
+; =================================================
+
+LARGO_CADENA PROC NEAR
+
+    PUSH AX
+    PUSH SI
+
+    MOV SI, DX
+    XOR CX, CX
+
+
+LARGO_CADENA_LOOP:
+
+    MOV AL, [SI]
+    CMP AL, '$'
+    JE LARGO_CADENA_FIN
+
+    INC CX
+    INC SI
+    JMP LARGO_CADENA_LOOP
+
+
+LARGO_CADENA_FIN:
+
+    POP SI
+    POP AX
+
+    RET
+
+LARGO_CADENA ENDP
+
+
+; =================================================
+; MOSTRAR MENSAJE TEMPORAL "PROXIMAMENTE"
+;
+; Usado por las opciones del menu que todavia no
+; tienen su funcionalidad conectada.
+; =================================================
+
+MOSTRAR_PROXIMAMENTE PROC NEAR
+
+    PUSH AX
+    PUSH BX
+    PUSH DX
+
+    MOV AX, 0003H
+    INT 10H
+
+    MOV BH, 12
+    MOV BL, 12
+    LEA DX, TXT_PROXIMAMENTE
+    CALL MOSTRAR_TEXTO
+
+    MOV AH, 00H
+    INT 16H
+
+    POP DX
+    POP BX
+    POP AX
+
+    RET
+
+MOSTRAR_PROXIMAMENTE ENDP
+
+
+; =================================================
+; CREAR ARCHIVO NUEVO
+;
+; PENDIENTE: se implementa en el siguiente commit.
+; =================================================
+
+CREAR_ARCHIVO:
+
+    CALL MOSTRAR_PROXIMAMENTE
+    JMP MOSTRAR_MENU_PRINCIPAL
+
+
+; =================================================
+; ABRIR ARCHIVO POR NOMBRE
+;
+; PENDIENTE: se implementa en un commit posterior.
+; =================================================
+
+ABRIR_ARCHIVO:
+
+    CALL MOSTRAR_PROXIMAMENTE
+    JMP MOSTRAR_MENU_PRINCIPAL
+
+
+; =================================================
+; ABRIR ARCHIVO POR LISTA (EXTRA)
+;
+; PENDIENTE: se implementa en un commit posterior.
+; =================================================
+
+ABRIR_ARCHIVO_LISTA:
+
+    CALL MOSTRAR_PROXIMAMENTE
+    JMP MOSTRAR_MENU_PRINCIPAL
 
 
 ; =================================================
