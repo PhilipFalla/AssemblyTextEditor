@@ -148,8 +148,6 @@ OPCION4 DB 'SALIR$'
 
 PIE_MENU DB 'Flechas: mover   ENTER: seleccionar   ALT+X: salir$'
 
-TXT_PROXIMAMENTE DB 'Funcion disponible proximamente. Presiona una tecla...$'
-
 
 ; =================================================
 ; MANEJO DE ARCHIVOS
@@ -172,6 +170,31 @@ TXT_ERROR_GUARDAR DB 'No se pudo guardar el archivo. Presiona una tecla para sal
 TXT_ABRIR_TITULO DB 'ABRIR ARCHIVO POR NOMBRE$'
 TXT_ABRIR_NOMBRE DB 'Escribe el nombre (letras/numeros, maximo 8):$'
 TXT_ERROR_ABRIR  DB 'Archivo no encontrado. Presiona una tecla para reintentar...$'
+
+
+; =================================================
+; ABRIR ARCHIVO POR LISTA (EXTRA)
+; =================================================
+
+; Archivo que guarda los nombres de los documentos
+; creados con el programa (nuestro propio "directorio")
+ARCHIVO_INDICE DB 'INDICE.DAT',0
+
+MAX_ARCHIVOS EQU 15
+
+; Cada entrada: 13 bytes ASCIIZ (formato 8.3 + terminador)
+LISTA_ARCHIVOS    DB MAX_ARCHIVOS*13 DUP(0)
+LISTA_TEMPORAL    DB MAX_ARCHIVOS*13 DUP(0)
+NUM_ARCHIVOS_LISTA DB 0
+LISTA_SELECCION    DB 0
+
+; Variables de trabajo de LIMPIAR_INDICE
+LI_RESTANTES  DB 0
+LI_SOBREVIVEN DB 0
+
+TXT_LISTA_TITULO DB 'ABRIR ARCHIVO POR LISTA$'
+TXT_LISTA_VACIA  DB 'No hay archivos en el indice. Presiona una tecla...$'
+TXT_LISTA_PIE    DB 'Flechas: mover   ENTER: abrir   ALT+X: cancelar$'
 
 
 .CODE
@@ -1326,39 +1349,6 @@ LARGO_CADENA ENDP
 
 
 ; =================================================
-; MOSTRAR MENSAJE TEMPORAL "PROXIMAMENTE"
-;
-; Usado por las opciones del menu que todavia no
-; tienen su funcionalidad conectada.
-; =================================================
-
-MOSTRAR_PROXIMAMENTE PROC NEAR
-
-    PUSH AX
-    PUSH BX
-    PUSH DX
-
-    MOV AX, 0003H
-    INT 10H
-
-    MOV BH, 12
-    MOV BL, 12
-    LEA DX, TXT_PROXIMAMENTE
-    CALL MOSTRAR_TEXTO
-
-    MOV AH, 00H
-    INT 16H
-
-    POP DX
-    POP BX
-    POP AX
-
-    RET
-
-MOSTRAR_PROXIMAMENTE ENDP
-
-
-; =================================================
 ; CREAR ARCHIVO NUEVO
 ; =================================================
 
@@ -1408,6 +1398,10 @@ CREAR_ARCHIVO_PEDIR_NOMBRE:
     MOV BX, AX
     MOV AH, 3EH
     INT 21H
+
+    ; Registrarlo en el indice para que aparezca
+    ; despues en "Abrir archivo por lista"
+    CALL AGREGAR_AL_INDICE
 
     CALL REINICIAR_DOCUMENTO
 
@@ -1721,6 +1715,19 @@ ABRIR_ARCHIVO_REVISAR_VACIO:
 
     CALL CONSTRUIR_NOMBRE_ARCHIVO
 
+    JMP ABRIR_ARCHIVO_CON_NOMBRE
+
+
+; =================================================
+; ABRIR UN ARCHIVO A PARTIR DE ARCHIVO_ACTUAL
+;
+; Punto de entrada compartido: lo usa tanto quien
+; escribio el nombre a mano como ABRIR_ARCHIVO_LISTA
+; (que ya deja el nombre elegido en ARCHIVO_ACTUAL).
+; =================================================
+
+ABRIR_ARCHIVO_CON_NOMBRE:
+
     ; Abrir el archivo existente (AL=00H = solo lectura)
     LEA DX, ARCHIVO_ACTUAL
     MOV AL, 00H
@@ -1814,14 +1821,593 @@ ABRIR_ARCHIVO:
 
 ; =================================================
 ; ABRIR ARCHIVO POR LISTA (EXTRA)
-;
-; PENDIENTE: se implementa en un commit posterior.
 ; =================================================
 
 ABRIR_ARCHIVO_LISTA:
 
-    CALL MOSTRAR_PROXIMAMENTE
+    CALL CARGAR_INDICE
+    CALL LIMPIAR_INDICE
+
+    ; El destino "vacia" queda lejos, se invierte la
+    ; condicion y se usa JMP.
+    CMP NUM_ARCHIVOS_LISTA, 0
+    JNE AAL_MOSTRAR
+    JMP AAL_VACIA
+
+
+AAL_MOSTRAR:
+
+    MOV LISTA_SELECCION, 0
+
+    ; Limpiar pantalla
+    MOV AX, 0003H
+    INT 10H
+
+    CALL DIBUJAR_MARCO
+
+    MOV BH, 4
+    MOV BL, 28
+    LEA DX, TXT_LISTA_TITULO
+    CALL MOSTRAR_TEXTO
+
+    MOV BH, 20
+    MOV BL, 14
+    LEA DX, TXT_LISTA_PIE
+    CALL MOSTRAR_TEXTO
+
+
+AAL_REDIBUJAR:
+
+    CALL DIBUJAR_LISTA_ARCHIVOS
+
+
+AAL_LEER_TECLA:
+
+    MOV AH, 00H
+    INT 16H
+
+    CMP AH, 48H
+    JE AAL_ARRIBA
+
+    CMP AH, 50H
+    JE AAL_ABAJO
+
+    CMP AL, 0DH
+    JE AAL_SELECCIONAR
+
+    ; Alt + X cancela
+    CMP AH, 2DH
+    JNE AAL_LEER_TECLA
+
+    CMP AL, 00H
+    JNE AAL_LEER_TECLA
+
     JMP MOSTRAR_MENU_PRINCIPAL
+
+
+AAL_ARRIBA:
+
+    CMP LISTA_SELECCION, 0
+    JE AAL_REDIBUJAR
+
+    DEC LISTA_SELECCION
+    JMP AAL_REDIBUJAR
+
+
+AAL_ABAJO:
+
+    MOV AL, NUM_ARCHIVOS_LISTA
+    DEC AL
+    CMP LISTA_SELECCION, AL
+    JAE AAL_REDIBUJAR
+
+    INC LISTA_SELECCION
+    JMP AAL_REDIBUJAR
+
+
+AAL_SELECCIONAR:
+
+    ; Copiar el nombre elegido (LISTA_ARCHIVOS[seleccion])
+    ; a ARCHIVO_ACTUAL, para reutilizar la apertura comun
+    XOR AX, AX
+    MOV AL, LISTA_SELECCION
+    MOV CL, 13
+    MUL CL
+
+    LEA SI, LISTA_ARCHIVOS
+    ADD SI, AX
+
+    LEA DI, ARCHIVO_ACTUAL
+
+    MOV CX, 13
+
+
+AAL_COPIAR_NOMBRE:
+
+    MOV AL, [SI]
+    MOV [DI], AL
+    INC SI
+    INC DI
+    LOOP AAL_COPIAR_NOMBRE
+
+    JMP ABRIR_ARCHIVO_CON_NOMBRE
+
+
+AAL_VACIA:
+
+    MOV AX, 0003H
+    INT 10H
+
+    MOV BH, 12
+    MOV BL, 10
+    LEA DX, TXT_LISTA_VACIA
+    CALL MOSTRAR_TEXTO
+
+    MOV AH, 00H
+    INT 16H
+
+    JMP MOSTRAR_MENU_PRINCIPAL
+
+
+; =================================================
+; CARGAR EL INDICE DE ARCHIVOS (INDICE.DAT)
+;
+; Llena LISTA_ARCHIVOS y NUM_ARCHIVOS_LISTA leyendo
+; el archivo indice. Si el archivo no existe todavia
+; (primera vez que se usa el programa), deja la lista
+; vacia sin marcar error.
+; =================================================
+
+CARGAR_INDICE PROC NEAR
+
+    PUSH AX
+    PUSH BX
+    PUSH CX
+    PUSH DX
+
+    MOV NUM_ARCHIVOS_LISTA, 0
+
+    LEA DX, ARCHIVO_INDICE
+    MOV AL, 00H
+    MOV AH, 3DH
+    INT 21H
+
+    JNC CI_LEER
+    JMP CI_FIN
+
+
+CI_LEER:
+
+    MOV BX, AX
+
+    ; Leer todas las entradas de una vez
+    ; (maximo MAX_ARCHIVOS entradas de 13 bytes)
+    LEA DX, LISTA_ARCHIVOS
+    MOV CX, MAX_ARCHIVOS*13
+    MOV AH, 3FH
+    INT 21H
+
+    ; AX = bytes leidos; dividir entre 13 para saber
+    ; cuantas entradas completas se leyeron
+    XOR DX, DX
+    MOV CX, 13
+    DIV CX
+
+    MOV NUM_ARCHIVOS_LISTA, AL
+
+    MOV AH, 3EH
+    INT 21H
+
+
+CI_FIN:
+
+    POP DX
+    POP CX
+    POP BX
+    POP AX
+
+    RET
+
+CARGAR_INDICE ENDP
+
+
+; =================================================
+; GUARDAR EL INDICE DE ARCHIVOS (INDICE.DAT)
+;
+; Escribe las NUM_ARCHIVOS_LISTA entradas de
+; LISTA_ARCHIVOS al archivo indice (lo trunca primero).
+; =================================================
+
+GUARDAR_INDICE PROC NEAR
+
+    PUSH AX
+    PUSH BX
+    PUSH CX
+    PUSH DX
+
+    LEA DX, ARCHIVO_INDICE
+    XOR CX, CX
+    MOV AH, 3CH
+    INT 21H
+
+    JNC GI_ESCRIBIR
+    JMP GI_FIN
+
+
+GI_ESCRIBIR:
+
+    MOV BX, AX
+
+    ; Las entradas estan contiguas en memoria, se
+    ; escriben todas con una sola llamada
+    XOR AX, AX
+    MOV AL, NUM_ARCHIVOS_LISTA
+    MOV CL, 13
+    MUL CL
+    MOV CX, AX
+
+    LEA DX, LISTA_ARCHIVOS
+    MOV AH, 40H
+    INT 21H
+
+    MOV AH, 3EH
+    INT 21H
+
+
+GI_FIN:
+
+    POP DX
+    POP CX
+    POP BX
+    POP AX
+
+    RET
+
+GUARDAR_INDICE ENDP
+
+
+; =================================================
+; QUITAR DEL INDICE LOS ARCHIVOS QUE YA NO EXISTEN
+;
+; Recorre LISTA_ARCHIVOS e intenta abrir cada archivo.
+; Si no existe (se borro fuera del programa), se quita
+; de la lista. Al final se vuelve a guardar INDICE.DAT
+; ya sin esas entradas.
+; =================================================
+
+LIMPIAR_INDICE PROC NEAR
+
+    PUSH AX
+    PUSH BX
+    PUSH CX
+    PUSH DX
+    PUSH SI
+    PUSH DI
+
+    MOV AL, NUM_ARCHIVOS_LISTA
+    MOV LI_RESTANTES, AL
+    MOV LI_SOBREVIVEN, 0
+
+    LEA SI, LISTA_ARCHIVOS
+    LEA DI, LISTA_TEMPORAL
+
+
+LI_LOOP:
+
+    CMP LI_RESTANTES, 0
+    JNE LI_REVISAR
+    JMP LI_FIN
+
+
+LI_REVISAR:
+
+    ; Intentar abrir el archivo de esta entrada
+    MOV DX, SI
+    MOV AL, 00H
+    MOV AH, 3DH
+    INT 21H
+
+    JNC LI_EXISTE
+    JMP LI_NO_EXISTE
+
+
+LI_EXISTE:
+
+    ; Existe: cerrarlo y copiarlo a LISTA_TEMPORAL
+    MOV BX, AX
+    MOV AH, 3EH
+    INT 21H
+
+    MOV CX, 13
+
+
+LI_COPIAR:
+
+    MOV AL, [SI]
+    MOV [DI], AL
+    INC SI
+    INC DI
+    LOOP LI_COPIAR
+
+    INC LI_SOBREVIVEN
+
+    JMP LI_SIGUIENTE
+
+
+LI_NO_EXISTE:
+
+    ; No existe: se salta sin copiarlo a LISTA_TEMPORAL
+    ADD SI, 13
+
+
+LI_SIGUIENTE:
+
+    DEC LI_RESTANTES
+    JMP LI_LOOP
+
+
+LI_FIN:
+
+    MOV AL, LI_SOBREVIVEN
+    MOV NUM_ARCHIVOS_LISTA, AL
+
+    ; Copiar LISTA_TEMPORAL de vuelta a LISTA_ARCHIVOS
+    LEA SI, LISTA_TEMPORAL
+    LEA DI, LISTA_ARCHIVOS
+    MOV CX, MAX_ARCHIVOS*13
+
+
+LI_COPIAR_FINAL:
+
+    MOV AL, [SI]
+    MOV [DI], AL
+    INC SI
+    INC DI
+    LOOP LI_COPIAR_FINAL
+
+    CALL GUARDAR_INDICE
+
+    POP DI
+    POP SI
+    POP DX
+    POP CX
+    POP BX
+    POP AX
+
+    RET
+
+LIMPIAR_INDICE ENDP
+
+
+; =================================================
+; AGREGAR ARCHIVO_ACTUAL AL INDICE DE ARCHIVOS
+;
+; Se usa al crear un archivo nuevo, para que despues
+; aparezca en "Abrir archivo por lista".
+; =================================================
+
+AGREGAR_AL_INDICE PROC NEAR
+
+    PUSH AX
+    PUSH CX
+    PUSH SI
+    PUSH DI
+
+    CALL CARGAR_INDICE
+
+    ; Si ya esta lleno, no se agrega (caso extremo)
+    CMP NUM_ARCHIVOS_LISTA, MAX_ARCHIVOS
+    JB AAI_AGREGAR
+    JMP AAI_FIN
+
+
+AAI_AGREGAR:
+
+    ; Direccion destino = LISTA_ARCHIVOS + indice*13
+    XOR AX, AX
+    MOV AL, NUM_ARCHIVOS_LISTA
+    MOV CL, 13
+    MUL CL
+
+    LEA DI, LISTA_ARCHIVOS
+    ADD DI, AX
+
+    LEA SI, ARCHIVO_ACTUAL
+    MOV CX, 13
+
+
+AAI_COPIAR:
+
+    MOV AL, [SI]
+    MOV [DI], AL
+    INC SI
+    INC DI
+    LOOP AAI_COPIAR
+
+    INC NUM_ARCHIVOS_LISTA
+
+    CALL GUARDAR_INDICE
+
+
+AAI_FIN:
+
+    POP DI
+    POP SI
+    POP CX
+    POP AX
+
+    RET
+
+AGREGAR_AL_INDICE ENDP
+
+
+; =================================================
+; DIBUJAR LA LISTA DE ARCHIVOS .SYP ENCONTRADOS
+;
+; La entrada resaltada (LISTA_SELECCION) usa el
+; atributo 70H, las demas usan 0BH.
+; =================================================
+
+DIBUJAR_LISTA_ARCHIVOS PROC NEAR
+
+    PUSH AX
+    PUSH BX
+    PUSH CX
+    PUSH DX
+    PUSH SI
+
+    LEA SI, LISTA_ARCHIVOS
+    MOV DL, 0
+
+
+DLA_LOOP:
+
+    CMP DL, NUM_ARCHIVOS_LISTA
+    JB DLA_MOSTRAR
+    JMP DLA_FIN
+
+
+DLA_MOSTRAR:
+
+    ; Atributo segun si esta seleccionado
+    MOV CL, 0BH
+    CMP DL, LISTA_SELECCION
+    JNE DLA_COLOR_OK
+    MOV CL, 70H
+
+
+DLA_COLOR_OK:
+
+    ; Fila = 6 + indice, columna fija = 20
+    MOV AL, DL
+    ADD AL, 6
+    MOV BH, AL
+    MOV BL, 20
+
+    PUSH DX
+    PUSH SI
+
+    MOV DX, SI
+    CALL MOSTRAR_NOMBRE_ARCHIVO
+
+    POP SI
+    POP DX
+
+    ADD SI, 13
+    INC DL
+
+    JMP DLA_LOOP
+
+
+DLA_FIN:
+
+    POP SI
+    POP DX
+    POP CX
+    POP BX
+    POP AX
+
+    RET
+
+DIBUJAR_LISTA_ARCHIVOS ENDP
+
+
+; =================================================
+; CALCULAR LONGITUD DE UNA CADENA ASCIIZ (termina en 0)
+;
+; Entrada:
+; DX = direccion de la cadena
+;
+; Salida:
+; CX = longitud (sin contar el 0 final)
+; =================================================
+
+LARGO_ASCIIZ PROC NEAR
+
+    PUSH AX
+    PUSH SI
+
+    MOV SI, DX
+    XOR CX, CX
+
+
+LARGO_ASCIIZ_LOOP:
+
+    MOV AL, [SI]
+    CMP AL, 0
+    JE LARGO_ASCIIZ_FIN
+
+    INC CX
+    INC SI
+    JMP LARGO_ASCIIZ_LOOP
+
+
+LARGO_ASCIIZ_FIN:
+
+    POP SI
+    POP AX
+
+    RET
+
+LARGO_ASCIIZ ENDP
+
+
+; =================================================
+; MOSTRAR UN NOMBRE DE ARCHIVO (ASCIIZ) CON COLOR
+;
+; Entrada:
+; BH = fila
+; BL = columna
+; DX = direccion del nombre (terminado en 0)
+; CL = atributo de color
+; =================================================
+
+MOSTRAR_NOMBRE_ARCHIVO PROC NEAR
+
+    PUSH AX
+    PUSH BX
+    PUSH CX
+    PUSH DX
+    PUSH SI
+    PUSH BP
+    PUSH ES
+
+    MOV SI, DX
+
+    ; CALL LARGO_ASCIIZ destruye CX, el atributo se
+    ; guarda antes en AH.
+    MOV AH, CL
+
+    PUSH BX
+
+    MOV DX, SI
+    CALL LARGO_ASCIIZ
+
+    POP BX
+
+    MOV DH, BH
+    MOV DL, BL
+    MOV BH, 00H
+    MOV BL, AH
+
+    PUSH DS
+    POP ES
+    MOV BP, SI
+
+    MOV AX, 1301H
+    INT 10H
+
+    POP ES
+    POP BP
+    POP SI
+    POP DX
+    POP CX
+    POP BX
+    POP AX
+
+    RET
+
+MOSTRAR_NOMBRE_ARCHIVO ENDP
 
 
 ; =================================================
