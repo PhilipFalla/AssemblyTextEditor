@@ -151,6 +151,23 @@ PIE_MENU DB 'Flechas: mover   ENTER: seleccionar   ALT+X: salir$'
 TXT_PROXIMAMENTE DB 'Funcion disponible proximamente. Presiona una tecla...$'
 
 
+; =================================================
+; MANEJO DE ARCHIVOS
+; =================================================
+
+; Nombre base ingresado por el usuario (sin extension)
+; Maximo 8 caracteres + terminador
+NOMBRE_TEMP DB 9 DUP(0)
+
+; Nombre completo en disco (con extension .SYP)
+; usado por CREAR_ARCHIVO, ABRIR_ARCHIVO y GUARDAR_SALIR
+ARCHIVO_ACTUAL DB 13 DUP(0)
+
+TXT_CREAR_TITULO DB 'CREAR ARCHIVO NUEVO$'
+TXT_CREAR_NOMBRE DB 'Escribe el nombre (letras/numeros, maximo 8):$'
+TXT_ERROR_CREAR  DB 'No se pudo crear el archivo. Presiona una tecla para reintentar...$'
+
+
 .CODE
 
 MAIN PROC FAR
@@ -1027,14 +1044,30 @@ MENU_ABAJO:
 
 MENU_SELECCIONAR:
 
+    ; JE no alcanza estos destinos (quedan lejos en el
+    ; archivo), asi que se invierte la condicion y se
+    ; usa JMP, que si soporta saltos largos.
+
     CMP MENU_SELECCION, 0
-    JE CREAR_ARCHIVO
+    JNE MENU_SEL_REVISAR_1
+    JMP CREAR_ARCHIVO
+
+
+MENU_SEL_REVISAR_1:
 
     CMP MENU_SELECCION, 1
-    JE ABRIR_ARCHIVO
+    JNE MENU_SEL_REVISAR_2
+    JMP ABRIR_ARCHIVO
+
+
+MENU_SEL_REVISAR_2:
 
     CMP MENU_SELECCION, 2
-    JE ABRIR_ARCHIVO_LISTA
+    JNE MENU_SEL_SALIR
+    JMP ABRIR_ARCHIVO_LISTA
+
+
+MENU_SEL_SALIR:
 
     JMP FIN_PROGRAMA
 
@@ -1321,14 +1354,320 @@ MOSTRAR_PROXIMAMENTE ENDP
 
 ; =================================================
 ; CREAR ARCHIVO NUEVO
-;
-; PENDIENTE: se implementa en el siguiente commit.
 ; =================================================
+
+CREAR_ARCHIVO_PEDIR_NOMBRE:
+
+    ; Limpiar pantalla
+    MOV AX, 0003H
+    INT 10H
+
+    MOV BH, 6
+    MOV BL, 30
+    LEA DX, TXT_CREAR_TITULO
+    CALL MOSTRAR_TEXTO
+
+    MOV BH, 10
+    MOV BL, 15
+    LEA DX, TXT_CREAR_NOMBRE
+    CALL MOSTRAR_TEXTO
+
+    ; Cursor para escribir el nombre
+    MOV AH, 02H
+    MOV BH, 00H
+    MOV DH, 12
+    MOV DL, 15
+    INT 10H
+
+    LEA DI, NOMBRE_TEMP
+    CALL LEER_NOMBRE_ARCHIVO
+
+    JC CREAR_ARCHIVO_CANCELAR
+
+    ; No permitir nombre vacio
+    CMP CX, 0
+    JE CREAR_ARCHIVO_PEDIR_NOMBRE
+
+    CALL CONSTRUIR_NOMBRE_ARCHIVO
+
+    ; Crear archivo (CX = atributos = 0)
+    LEA DX, ARCHIVO_ACTUAL
+    XOR CX, CX
+    MOV AH, 3CH
+    INT 21H
+
+    JC CREAR_ARCHIVO_ERROR
+
+    ; Cerrar el archivo recien creado
+    MOV BX, AX
+    MOV AH, 3EH
+    INT 21H
+
+    CALL REINICIAR_DOCUMENTO
+
+    JMP REDIBUJAR_EDITOR
+
+
+CREAR_ARCHIVO_ERROR:
+
+    MOV BH, 14
+    MOV BL, 15
+    LEA DX, TXT_ERROR_CREAR
+    CALL MOSTRAR_TEXTO
+
+    MOV AH, 00H
+    INT 16H
+
+    JMP CREAR_ARCHIVO_PEDIR_NOMBRE
+
+
+CREAR_ARCHIVO_CANCELAR:
+
+    JMP MOSTRAR_MENU_PRINCIPAL
+
 
 CREAR_ARCHIVO:
 
-    CALL MOSTRAR_PROXIMAMENTE
-    JMP MOSTRAR_MENU_PRINCIPAL
+    JMP CREAR_ARCHIVO_PEDIR_NOMBRE
+
+
+; =================================================
+; LEER NOMBRE DE ARCHIVO
+;
+; Entrada:
+; DI = direccion del buffer (ASCIIZ)
+;
+; Salida:
+; CX = cantidad de caracteres
+; CF = 1 si el usuario cancelo con ALT+Z
+; CF = 0 si termino con ENTER
+;
+; Solo acepta letras y numeros, maximo 8 caracteres.
+; Las minusculas se convierten a mayusculas.
+; =================================================
+
+LEER_NOMBRE_ARCHIVO PROC NEAR
+
+    PUSH AX
+    PUSH DX
+
+    XOR CX, CX
+
+
+LNA_TECLA:
+
+    MOV AH, 00H
+    INT 16H
+
+    ; ALT + Z cancela
+    CMP AH, 2CH
+    JNE LNA_REVISAR_ENTER
+
+    CMP AL, 00H
+    JNE LNA_REVISAR_ENTER
+
+    STC
+    JMP LNA_FIN
+
+
+LNA_REVISAR_ENTER:
+
+    CMP AL, 0DH
+    JE LNA_TERMINAR
+
+    CMP AL, 08H
+    JE LNA_BACKSPACE
+
+    ; Maximo 8 caracteres
+    CMP CX, 8
+    JAE LNA_TECLA
+
+    ; Numeros
+    CMP AL, '0'
+    JB LNA_REVISAR_MAYUS
+
+    CMP AL, '9'
+    JBE LNA_GUARDAR
+
+
+LNA_REVISAR_MAYUS:
+
+    CMP AL, 'A'
+    JB LNA_REVISAR_MINUS
+
+    CMP AL, 'Z'
+    JBE LNA_GUARDAR
+
+
+LNA_REVISAR_MINUS:
+
+    CMP AL, 'a'
+    JB LNA_TECLA
+
+    CMP AL, 'z'
+    JA LNA_TECLA
+
+    ; Convertir a mayuscula
+    SUB AL, 20H
+
+
+LNA_GUARDAR:
+
+    MOV [DI], AL
+    INC DI
+    INC CX
+
+    MOV AH, 0EH
+    MOV BH, 00H
+    INT 10H
+
+    JMP LNA_TECLA
+
+
+LNA_BACKSPACE:
+
+    CMP CX, 0
+    JE LNA_TECLA
+
+    DEC DI
+    DEC CX
+
+    MOV BYTE PTR [DI], 0
+
+    MOV AH, 0EH
+    MOV AL, 08H
+    INT 10H
+
+    MOV AL, ' '
+    INT 10H
+
+    MOV AL, 08H
+    INT 10H
+
+    JMP LNA_TECLA
+
+
+LNA_TERMINAR:
+
+    MOV BYTE PTR [DI], 0
+    CLC
+
+
+LNA_FIN:
+
+    POP DX
+    POP AX
+
+    RET
+
+LEER_NOMBRE_ARCHIVO ENDP
+
+
+; =================================================
+; CONSTRUIR NOMBRE COMPLETO DE ARCHIVO
+;
+; Copia NOMBRE_TEMP a ARCHIVO_ACTUAL y le agrega
+; la extension .SYP
+; =================================================
+
+CONSTRUIR_NOMBRE_ARCHIVO PROC NEAR
+
+    PUSH AX
+    PUSH SI
+    PUSH DI
+
+    LEA SI, NOMBRE_TEMP
+    LEA DI, ARCHIVO_ACTUAL
+
+
+CNA_COPIAR:
+
+    MOV AL, [SI]
+    CMP AL, 0
+    JE CNA_EXTENSION
+
+    MOV [DI], AL
+    INC SI
+    INC DI
+    JMP CNA_COPIAR
+
+
+CNA_EXTENSION:
+
+    MOV BYTE PTR [DI], '.'
+    INC DI
+    MOV BYTE PTR [DI], 'S'
+    INC DI
+    MOV BYTE PTR [DI], 'Y'
+    INC DI
+    MOV BYTE PTR [DI], 'P'
+    INC DI
+    MOV BYTE PTR [DI], 0
+
+    POP DI
+    POP SI
+    POP AX
+
+    RET
+
+CONSTRUIR_NOMBRE_ARCHIVO ENDP
+
+
+; =================================================
+; REINICIAR DOCUMENTO EN BLANCO
+;
+; Deja los buffers del editor listos para un
+; documento nuevo (texto, colores, imagenes y cursor).
+; =================================================
+
+REINICIAR_DOCUMENTO PROC NEAR
+
+    PUSH AX
+    PUSH CX
+    PUSH DI
+
+    ; Texto en blanco
+    LEA DI, BUFFER_TEXTO
+    MOV CX, 1840
+    MOV AL, ' '
+
+
+REINICIAR_TEXTO_LOOP:
+
+    MOV [DI], AL
+    INC DI
+    LOOP REINICIAR_TEXTO_LOOP
+
+    ; Color por defecto
+    LEA DI, BUFFER_COLOR
+    MOV CX, 1840
+    MOV AL, 07H
+
+
+REINICIAR_COLOR_LOOP:
+
+    MOV [DI], AL
+    INC DI
+    LOOP REINICIAR_COLOR_LOOP
+
+    MOV NUM_IMAGENES, 0
+
+    MOV COLOR_ACTUAL, 07H
+    MOV NUM_COLOR, 0
+
+    MOV FONDO_ACTUAL, 00H
+    MOV NUM_FONDO, 0
+
+    MOV CURSORX, 0
+    MOV CURSORY, 2
+
+    POP DI
+    POP CX
+    POP AX
+
+    RET
+
+REINICIAR_DOCUMENTO ENDP
 
 
 ; =================================================
